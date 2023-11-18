@@ -1,0 +1,33 @@
+[[model]]
+name: fhn
+desc: """
+    Myokit implementation of the Fitzhugh Nagumo model
+    """
+author: TMB
+# Initial values
+membrane.v = 0
+membrane.w = 0
+
+[engine]
+time = 0 bind time
+pace = 0 bind pace : A dimensionless pacing variable
+
+
+[membrane]
+epsilon = 0.015
+delta = 1
+a = 0.15
+b = 0.5
+c = 1
+d = 0
+dot(v) = delta*(-v * (v-a) * (v-1) - w) - i_diff + stimulus.i_stim
+    label membrane_potential
+    desc: The membrane potential
+dot(w) = epsilon*(b*v - c*w + d)
+	desc: The recovery variable
+i_diff = 0 bind diffusion_current
+    desc: Current to neighbouring cells, defined outward.
+    
+[stimulus]
+i_stim = engine.pace * amplitude
+amplitude = 1

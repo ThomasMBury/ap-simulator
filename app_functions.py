@@ -12,18 +12,13 @@ App functions for AP explorer
 import numpy as np
 import pandas as pd
 
-
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-
 import myokit as myokit
 
-
-
 cols = px.colors.qualitative.Plotly
-
 
 def sim_model(s, params={}, bcl=1000, num_beats=4):
     '''
@@ -310,8 +305,6 @@ def generate_fig(df_base, df_mod):
                       row=5,
                       )
 
-    
-    
     # fig.update_xaxes(range=[-10,500],
     #                   )
     
