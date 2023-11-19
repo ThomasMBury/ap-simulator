@@ -16,6 +16,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+from dash import Dash, dcc, html
+
+
 import myokit as myokit
 
 cols = px.colors.qualitative.Plotly
@@ -89,16 +92,15 @@ def sim_model(s, params={}, bcl=1000, num_beats=4):
 
 
 
-def generate_fig(df_base, df_mod):
+def make_simulation_fig(df_sim, var_plot):
     '''
-    Generate figure of currents vs time
+    Make figure showing variable vs time
 
     Parameters
     ----------
-    df_base : pd.DataFrame
-        simulation data of model at baseline parameters
-    df_mod : pd.DataFrame
-        simulation data of model at modified parameters 
+    df_sim : pd.DataFrame
+        simulation data of model
+    var_plot : variable to plot
 
     Returns
     -------
@@ -108,222 +110,57 @@ def generate_fig(df_base, df_mod):
         
     line_width = 1
     
-    fig = make_subplots(rows=5, cols=1,
-                        shared_xaxes=True,
-                        vertical_spacing=0.02
-                        )
+    fig = go.Figure()
     
+    fig.add_trace(
+        go.Scatter(
+            x=df_sim['time'],
+            y=df_sim[var_plot],
+            showlegend=False,
+            mode='lines',
+            line={'color':cols[0], 
+                  'width':line_width,
+                  },
+            ),
+        )
 
-    ## Voltage plot
-    # baseline
-    fig.add_trace(
-        go.Scatter(
-            x=df_base['time'],
-            y=df_base['voltage'],
-            name='baseline',
-            legendgroup='baseline', # this allows traces to be connected by legend
-            showlegend=True,
-            mode='lines',
-            line={'color':cols[0], 
-                  'width':line_width,
-                  },
-            ),
-        row=1,col=1,
-        )
-    
-    # modified
-    if not df_mod.empty:
-        fig.add_trace(
-            go.Scatter(
-                x=df_mod['time'],
-                y=df_mod['voltage'],
-                name='modified',
-                legendgroup='modified',
-                showlegend=True,
-                mode='lines',
-                line={'color':cols[1], 
-                      'width':line_width,
-                      },
-                ),
-            row=1,col=1,
-            )
-    
-
-    ## INa plot
-    # baseline
-    fig.add_trace(
-        go.Scatter(
-            x=df_base['time'],
-            y=df_base['ina'],
-            name='baseline',
-            legendgroup='baseline', # this allows traces to be connected by legend
-            showlegend=False,
-            mode='lines',
-            line={'color':cols[0], 
-                  'width':line_width,
-                  },
-            ),
-        row=2,col=1,
-        )
-    
-    # modified
-    if not df_mod.empty:
-        fig.add_trace(
-            go.Scatter(
-                x=df_mod['time'],
-                y=df_mod['ina'],
-                name='modified',
-                legendgroup='modified',
-                showlegend=False,
-                mode='lines',
-                line={'color':cols[1], 
-                      'width':line_width,
-                      },
-                ),
-            row=2,col=1,
-            )
-    
-    ## ICaL plot
-    # baseline
-    fig.add_trace(
-        go.Scatter(
-            x=df_base['time'],
-            y=df_base['ical'],
-            name='baseline',
-            legendgroup='baseline', # this allows traces to be connected by legend
-            showlegend=False,
-            mode='lines',
-            line={'color':cols[0], 
-                  'width':line_width,
-                  },
-            ),
-        row=3,col=1,
-        )
-    
-    # modified
-    if not df_mod.empty:
-        fig.add_trace(
-            go.Scatter(
-                x=df_mod['time'],
-                y=df_mod['ical'],
-                name='modified',
-                legendgroup='modified',
-                showlegend=False,
-                mode='lines',
-                line={'color':cols[1], 
-                      'width':line_width,
-                      },
-                ),
-            row=3,col=1,
-            )
-    
-    ## Ikr plot
-    # baseline
-    fig.add_trace(
-        go.Scatter(
-            x=df_base['time'],
-            y=df_base['ikr'],
-            name='baseline',
-            legendgroup='baseline', # this allows traces to be connected by legend
-            showlegend=False,
-            mode='lines',
-            line={'color':cols[0], 
-                  'width':line_width,
-                  },
-            ),
-        row=4,col=1,
-        )
-    
-    # modified
-    if not df_mod.empty:
-        fig.add_trace(
-            go.Scatter(
-                x=df_mod['time'],
-                y=df_mod['ikr'],
-                name='modified',
-                legendgroup='modified',
-                showlegend=False,
-                mode='lines',
-                line={'color':cols[1], 
-                      'width':line_width,
-                      },
-                ),
-            row=4,col=1,
-            )
-    
-    ## INaCa plot
-    # baseline
-    fig.add_trace(
-        go.Scatter(
-            x=df_base['time'],
-            y=df_base['inaca'],
-            name='baseline',
-            legendgroup='baseline', # this allows traces to be connected by legend
-            showlegend=False,
-            mode='lines',
-            line={'color':cols[0], 
-                  'width':line_width,
-                  },
-            ),
-        row=5,col=1,
-        )
-    
-    # modified
-    if not df_mod.empty:
-        fig.add_trace(
-            go.Scatter(
-                x=df_mod['time'],
-                y=df_mod['inaca'],
-                name='modified',
-                legendgroup='modified',
-                showlegend=False,
-                mode='lines',
-                line={'color':cols[1], 
-                      'width':line_width,
-                      },
-                ),
-            row=5,col=1,
-            )    
-    
-    fig.update_yaxes(title='Voltage (mV)',
-                      row=1,
-                      )
-   
-    fig.update_yaxes(title='INa (pA/pF)',
-                      row=2,
-                      )
-        
-    fig.update_yaxes(title='ICaL (pA/pF)',
-                      row=3,
-                      )
-    
-    fig.update_yaxes(title='IKr (pA/pF)',
-                      row=4,
-                      )
-    
-    fig.update_yaxes(title='INaCa (pA/pF)',
-                      row=5,
-                      )
-
-    # fig.update_xaxes(range=[-10,500],
-    #                   )
-    
-    fig.update_xaxes(title='Time (ms)',
-                      row=5,
-                      )
+    fig.update_xaxes(title='Time (ms)')
+    fig.update_yaxes(title=var_plot)
     
     fig.update_layout(
-                      # width=500,
-                      height=800,
+                      height=600,
                       margin={'l':20,'r':20,'t':20,'b':20},
-                      # legend={'yanchor':'top',
-                      #         'xanchor':'right',
-                      #         'x':0.99,
-                      #         'y':0.99,
-                      #         },
                       )
     
     return fig
+ 
+
+def make_fig_tabs(df_sim):
+  
+    cols = df_sim.columns
+    
+    list_tabs = []
+    
+    for var in cols:
+        
+        if var=='time':
+            continue
+    
+    
+        tab = dcc.Tab(
+            label=var, 
+            children=[dcc.Graph(
+                    figure=make_simulation_fig(df_sim,var))],
+                )
+        
+        
+        list_tabs.append(tab)
+
+    fig_tabs = dcc.Tabs(list_tabs)
+    
+    return fig_tabs
+
+
 
 
 

@@ -25,7 +25,7 @@ import os
 import myokit as myokit
 
 # Get app functions
-from app_functions import generate_fig, sim_model
+from app_functions import sim_model, make_simulation_fig, make_fig_tabs
 
 
 # Useful example
@@ -124,15 +124,14 @@ inaca_mult_def = 1
 tjca_mult_def = 1
 
 
-# # Run simulation at baseline parameter values
-df_base = sim_model(s, params={}, bcl=bcl_def, num_beats=num_beats_def)
-# Modified parameter run empty
-df_mod = pd.DataFrame()
+# # Run simulation
+df_sim = sim_model(s, params={}, bcl=bcl_def, num_beats=num_beats_def)
 
 # # Make figure
-fig = generate_fig(df_base, df_mod)
+plot_var='voltage'
+fig = make_simulation_fig(df_sim, plot_var)
 
-
+fig_tabs = make_fig_tabs(df_sim)
 
 
 #------------
@@ -157,6 +156,7 @@ slider_marks_bcl = {
     int(x) if x % 1 == 0 else x:str(int(x)) for x in np.arange(0,4001,1000)}
 
 
+
 body_layout = dbc.Container([
     dbc.Row([
         dbc.Col([
@@ -169,6 +169,23 @@ body_layout = dbc.Container([
                 """
                 ),            
             
+                
+            # # Div for dropdown
+            # html.Div([
+            #     # Slider for BCL
+            #     html.Label('Pacing cycle length = {}ms'.format(bcl_def),
+            #                 id='dropdown',
+            #                 style={'fontSize':14}),   
+                           
+            #     dcc.Slider(id='bcl_slider',
+            #                 min=200, 
+            #                 max=4000, 
+            #                 step=10, 
+            #                 marks=slider_marks_bcl,
+            #                 value=bcl_def,
+            #                 )
+            #     ]),                
+                
             # Div for sliders
             html.Div([
                 # Slider for BCL
@@ -183,19 +200,24 @@ body_layout = dbc.Container([
                             marks=slider_marks_bcl,
                             value=bcl_def,
                             )
-                ]),],
+                ]),
+            
+            ],
+                
+                
             width=4,
             ),
         
         dbc.Col(
     
+        
             # Figure
             html.Div(
-            
-                dcc.Graph(
-                    id='fig_voltage',
-                    figure=fig
-                    ),        
+                fig_tabs,
+                # dcc.Graph(
+                #     id='fig_voltage',
+                #     figure=fig
+                #     ),        
         
         
                 style={'width':'100%',
@@ -476,109 +498,107 @@ body_layout = dbc.Container([
 app.layout = html.Div([navbar, body_layout])
 
     
-    
-    
 #------------------
 # Callback functions
 #-------------------
 
 
 
-# Update text for sliders             
-@app.callback([
-               Output('bcl_slider_text','children'),
-               Output('num_beats_slider_text','children'),
-               Output('ina_slider_text','children'),
-               Output('ical_slider_text','children'),
-               Output('ikr_slider_text','children'),
-               Output('inaca_slider_text','children'),
-               Output('iks_slider_text','children'),
-               Output('ito_slider_text','children'),
-               Output('tjca_slider_text','children'),
-               ],
-              [
-               Input('bcl_slider','value'),
-               Input('num_beats_slider','value'),
-               Input('ina_slider','value'),
-               Input('ical_slider','value'),
-               Input('ikr_slider','value'),
-               Input('inaca_slider','value'),
-               Input('iks_slider','value'),
-               Input('ito_slider','value'),
-               Input('tjca_slider','value'),
-               ],
+# # Update text for sliders             
+# @app.callback([
+#                Output('bcl_slider_text','children'),
+#                Output('num_beats_slider_text','children'),
+#                Output('ina_slider_text','children'),
+#                Output('ical_slider_text','children'),
+#                Output('ikr_slider_text','children'),
+#                Output('inaca_slider_text','children'),
+#                Output('iks_slider_text','children'),
+#                Output('ito_slider_text','children'),
+#                Output('tjca_slider_text','children'),
+#                ],
+#               [
+#                Input('bcl_slider','value'),
+#                Input('num_beats_slider','value'),
+#                Input('ina_slider','value'),
+#                Input('ical_slider','value'),
+#                Input('ikr_slider','value'),
+#                Input('inaca_slider','value'),
+#                Input('iks_slider','value'),
+#                Input('ito_slider','value'),
+#                Input('tjca_slider','value'),
+#                ],
 
-)
+# )
 
-def update_slider_text(
-        bcl, num_beats,
-        ina_mult,ical_mult,ikr_mult,inaca_mult,
-        iks_mult, ito_mult, tjca_mult):
+# def update_slider_text(
+#         bcl, num_beats,
+#         ina_mult,ical_mult,ikr_mult,inaca_mult,
+#         iks_mult, ito_mult, tjca_mult):
     
-    # Slider text update
-    text_bcl = 'Pacing cycle length = {}ms'.format(bcl),
-    text_num_beats = 'Number of beats = {}'.format(num_beats),
-    text_ina = 'INa multiplier = {}'.format(ina_mult)
-    text_ical = 'ICaL multiplier = {}'.format(ical_mult)
-    text_ikr = 'IKr multiplier = {}'.format(ikr_mult)
-    text_inaca = 'INaCa multiplier = {}'.format(inaca_mult)
-    text_iks = 'IKs multiplier = {}'.format(iks_mult)
-    text_ito = 'Ito multiplier = {}'.format(ito_mult)
-    text_tjca = 'tjca multiplier = {}'.format(tjca_mult)
+#     # Slider text update
+#     text_bcl = 'Pacing cycle length = {}ms'.format(bcl),
+#     text_num_beats = 'Number of beats = {}'.format(num_beats),
+#     text_ina = 'INa multiplier = {}'.format(ina_mult)
+#     text_ical = 'ICaL multiplier = {}'.format(ical_mult)
+#     text_ikr = 'IKr multiplier = {}'.format(ikr_mult)
+#     text_inaca = 'INaCa multiplier = {}'.format(inaca_mult)
+#     text_iks = 'IKs multiplier = {}'.format(iks_mult)
+#     text_ito = 'Ito multiplier = {}'.format(ito_mult)
+#     text_tjca = 'tjca multiplier = {}'.format(tjca_mult)
 
-    return text_bcl, text_num_beats, \
-           text_ina, text_ical, text_ikr, text_inaca, text_iks, \
-           text_ito, text_tjca
+#     return text_bcl, text_num_beats, \
+#            text_ina, text_ical, text_ikr, text_inaca, text_iks, \
+#            text_ito, text_tjca
             
       
         
       
-# Update figure based on change in a model parameter
-@app.callback([Output('fig_voltage','figure'),
-                Output('loading-output','children'), 
-                ],
-              [
-                Input('bcl_slider','value'),
-                Input('num_beats_slider','value'),
-                Input('ina_slider','value'),
-                Input('ical_slider','value'),
-                Input('ikr_slider','value'),
-                Input('iks_slider','value'),
-                Input('inaca_slider','value'),
-                Input('ito_slider','value'),
-                Input('tjca_slider','value'),
-                ]
-              )
+# # Update figure based on change in a model parameter
+# @app.callback([Output('fig_voltage','figure'),
+#                 Output('loading-output','children'), 
+#                 ],
+#               [
+#                 Input('bcl_slider','value'),
+#                 Input('num_beats_slider','value'),
+#                 Input('ina_slider','value'),
+#                 Input('ical_slider','value'),
+#                 Input('ikr_slider','value'),
+#                 Input('iks_slider','value'),
+#                 Input('inaca_slider','value'),
+#                 Input('ito_slider','value'),
+#                 Input('tjca_slider','value'),
+#                 ]
+#               )
 
-def update_fig(bcl, num_beats,
-                ina_mult, ical_mult, ikr_mult,
-                iks_mult, inaca_mult, ito_mult,
-                tjca_mult):
+# def update_fig(bcl, num_beats,
+#                 ina_mult, ical_mult, ikr_mult,
+#                 iks_mult, inaca_mult, ito_mult,
+#                 tjca_mult):
     
-    # print('using inaca={}'.format(inaca_mult))
+#     # print('using inaca={}'.format(inaca_mult))
     
-    # Make dict of updated model parameter vlaues
-    params = {}
-    params[dict_par_labels['ina']] = params_default['ina']*ina_mult
-    params[dict_par_labels['ical']] = params_default['ical']*ical_mult
-    params[dict_par_labels['ikr']] = params_default['ikr']*ikr_mult
-    params[dict_par_labels['iks']] = params_default['iks']*iks_mult
-    params[dict_par_labels['inaca']] = params_default['inaca']*inaca_mult
-    params[dict_par_labels['ito']] = params_default['ito']*ito_mult
-    params[dict_par_labels['tjca']] = params_default['tjca']*tjca_mult
+#     # Make dict of updated model parameter vlaues
+#     params = {}
+#     params[dict_par_labels['ina']] = params_default['ina']*ina_mult
+#     params[dict_par_labels['ical']] = params_default['ical']*ical_mult
+#     params[dict_par_labels['ikr']] = params_default['ikr']*ikr_mult
+#     params[dict_par_labels['iks']] = params_default['iks']*iks_mult
+#     params[dict_par_labels['inaca']] = params_default['inaca']*inaca_mult
+#     params[dict_par_labels['ito']] = params_default['ito']*ito_mult
+#     params[dict_par_labels['tjca']] = params_default['tjca']*tjca_mult
 
 
-    # Run simulation
-    df_mod = sim_model(s,
-                        params=params,
-                        bcl=bcl,
-                        num_beats = num_beats
-                        )
+#     # Run simulation
+#     df_mod = sim_model(s,
+#                         params=params,
+#                         bcl=bcl,
+#                         num_beats = num_beats
+#                         )
     
-    # Make figure
-    fig = generate_fig(df_base, df_mod)
+#     # Make figure
+#     fig = generate_fig(df_base, df_mod)
 
-    return [fig, '']
+#     return [fig, '']
 
 
 if __name__ == '__main__':
