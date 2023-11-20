@@ -12,30 +12,23 @@ Dash app to run simulation of Torod model in myokit
 import numpy as np
 import pandas as pd
 
-import dash
-from dash import dcc
-from dash import html
-from dash.dependencies import Input, Output
+from dash import Dash, html, dcc, Input, Output, callback, ctx
 import dash_bootstrap_components as dbc
 import plotly.express as px
 
-import time
 import os
 
 import myokit as myokit
 
-# Get app functions
-from app_functions import sim_model, make_simulation_fig, make_fig_tabs
+import app_functions as funs
 
 
 # Useful example
 # https://dash.gallery/dash-cytoscape-lda/?_gl=1*1n1w6iy*_ga*MTkwMzI4NzAyLjE2NjY4MDg0MDg.*_ga_6G7EE0JNSC*MTcwMDI2MTU3MS4xMDguMS4xNzAwMjYyNTY0LjYwLjAuMA..#
 
-
 # Determine if running app locally or on cloud
 fileroot_local = '/Users/tbury/Google Drive/research/postdoc_23/ap_simulation_app/'
 fileroot_cloud = '/home/ubuntu/ap_simulation_app/'
-
 
 if os.getcwd()==fileroot_local[:-1]:
     run_cloud=False
@@ -44,17 +37,7 @@ else:
     run_cloud=True
     fileroot = fileroot_cloud
 
-
-# # Time function
-# tic = time.perf_counter()
-# df = sim_br_model(ina_multiplier=10)
-# toc = time.perf_counter()
-# print(f'Ran function in {toc - tic:0.4f} seconds')
-
-
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
-
-
+# Top navigation bar
 navbar = dbc.NavbarSimple(
     children=[
         dbc.NavItem(
@@ -77,7 +60,9 @@ navbar = dbc.NavbarSimple(
 )
 
 
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+
+# Initialise app
+app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 server=app.server
 
 # # If running in cloud, adjust prefix
@@ -99,7 +84,6 @@ dict_par_labels = {'ina':'INa.GNa', # inward sodium current
                    'tjca':'ICaL.tjca', # relaxation time of L-type Ca current
                    }
                    
-
 # Load in model from mmt file
 filepath_mmt = fileroot+'mmt_files/torord-2019.mmt'
 m = myokit.load_model(filepath_mmt)
@@ -110,7 +94,6 @@ s = myokit.Simulation(m)
 # Get default parameter values used in Torord (required to apply multipliers)
 params_default = {
     par:m.get(dict_par_labels[par]).value() for par in dict_par_labels.keys()}
-
 
 # Default multiplier values
 bcl_def = 1000
@@ -123,21 +106,19 @@ iks_mult_def = 1
 inaca_mult_def = 1
 tjca_mult_def = 1
 
-
 # # Run simulation
-df_sim = sim_model(s, params={}, bcl=bcl_def, num_beats=num_beats_def)
+df_sim = funs.sim_model(s, params={}, bcl=bcl_def, num_beats=num_beats_def)
 
 # # Make figure
 plot_var='voltage'
-fig = make_simulation_fig(df_sim, plot_var)
+fig = funs.make_simulation_fig(df_sim, plot_var)
 
-fig_tabs = make_fig_tabs(df_sim)
+fig_tabs = funs.make_fig_tabs(df_sim)
 
 
 #------------
 # App layout
 #--------------
-
 
 # Slider tick marks
 slider_min = 0
@@ -161,56 +142,121 @@ body_layout = dbc.Container([
     dbc.Row([
         dbc.Col([
             
-            
             dcc.Markdown(
                 """
                 -----
                 **Protocol**:
                 """
                 ),            
+                        
+            # Input box for BCL
+            html.Div([
+                html.Label('Basic cycle length =', style=dict(fontSize=14)),
+                dcc.Input(id="bcl", value=1000, type="number", style=dict(width=80,display='inline-block'), placeholder=1000),
+                html.Label(', BPM = ', style=dict(fontSize=14)),
+                dcc.Input(id="bpm", value=60, type="number",style=dict(width=80,display='inline-block')),
+                ],
+                ),
+            
+            # Input box for number of beats
+            html.Div([
+                html.Label('Number of beats = ', style=dict(fontSize=14,display='inline-block')),
+                dcc.Input(id="num_beats", value=10, type="number", style=dict(width=80,display='inline-block'), placeholder=10),
+                ], style=dict(display='inline-block', width='100%')),            
+            
+            # Input box for show last
+            html.Div([
+                html.Label('Show last ', style=dict(fontSize=14)),
+                dcc.Input(id="show_last", value=1, type="number", style=dict(width=80), placeholder=1),
+                html.Label(' beats ', style=dict(fontSize=14)),
+                ]),            
+            
+            # Run button
+            html.Div([
+                dbc.Button("Run", id="run_button", className="me-2", n_clicks=0, style=dict(fontSize=14)),
+                ]),              
+            
+            
+            
+            dcc.Markdown(
+                """
+                -----
+                **Model selection and parameters**:
+                """
+                ),              
             
                 
-            # # Div for dropdown
-            # html.Div([
-            #     # Slider for BCL
-            #     html.Label('Pacing cycle length = {}ms'.format(bcl_def),
-            #                 id='dropdown',
-            #                 style={'fontSize':14}),   
-                           
-            #     dcc.Slider(id='bcl_slider',
-            #                 min=200, 
-            #                 max=4000, 
-            #                 step=10, 
-            #                 marks=slider_marks_bcl,
-            #                 value=bcl_def,
-            #                 )
-            #     ]),                
+            dbc.Row([
+                # Model type
+                dbc.Col([
+                    html.Label('Model', style=dict(fontSize=14)),
+                    dcc.Dropdown(['endo', 'epi', 'mid'], 'endo', id='demo-dropdown', clearable=False,
+                                 style=dict(fontSize=14), ),
+                    ], width=4),
                 
+                
+                # Save button
+                dbc.Col([
+                    html.Label('Save myokit', style=dict(fontSize=14)),
+                    dbc.Button("Save", id="example-button", className="me-2", n_clicks=0,
+                               style=dict(fontSize=14),
+                               ), 
+                    ],
+                    width=4),                  
+                
+                
+                # Load button
+                dbc.Col([
+                    html.Label('Load myokit', style=dict(fontSize=14)),
+                    dcc.Upload(id='load-myokit',
+                               children=html.Div([
+                                   'drag+drop',
+                                   ]),
+                                style={
+                                 'width': '100%',
+                                 'height': '35px',
+                                 'lineHeight': '30px',
+                                 'borderWidth': '1px',
+                                 'borderStyle': 'dashed',
+                                 'borderRadius': '5px',
+                                 'textAlign': 'center',
+                                  'margin': '0px',
+                                 'fontSize':14,
+                                         },
+                               multiple=False,
+                               )
+                    ], 
+                    width=4),
+                
+                ]),
+            
+            html.Br(),
             # Div for sliders
             html.Div([
                 # Slider for BCL
                 html.Label('Pacing cycle length = {}ms'.format(bcl_def),
                             id='bcl_slider_text',
                             style={'fontSize':14}),   
-                           
+                          
                 dcc.Slider(id='bcl_slider',
                             min=200, 
                             max=4000, 
                             step=10, 
                             marks=slider_marks_bcl,
                             value=bcl_def,
-                            )
-                ]),
+                            ),
+                dcc.Input(id="bcl_box", type="number", min=200, max=4000, value=bcl_def),
+
+                ]),            
+            
+            
             
             ],
-                
-                
             width=4,
             ),
+ 
         
         dbc.Col(
-    
-        
             # Figure
             html.Div(
                 fig_tabs,
@@ -501,6 +547,45 @@ app.layout = html.Div([navbar, body_layout])
 #------------------
 # Callback functions
 #-------------------
+
+
+@callback(
+    Output("bcl", "value"),
+    Output("bpm", "value"),
+    Input("bcl", "value"),
+    Input("bpm", "value"),
+)
+def sync_input(bcl, bpm):
+    input_id = ctx.triggered[0]["prop_id"].split(".")[0]
+    if input_id == "bcl":
+        bpm= None if bcl is None else int(60_000/float(bcl)*100)/100
+    else:
+        bcl = None if bpm is None else int(60_000/float(bpm)*100)/100
+    return bcl, bpm
+
+
+# Callback function to sync slider with textbox
+@app.callback(
+    Output("bcl_box", "value"),
+    Output("bcl_slider", "value"),
+    Input("bcl_box", "value"),
+    Input("bcl_slider", "value"),
+)
+def callback(box_value, slider_value):
+    trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+    box_value_out = box_value if trigger_id == "bcl_box" else slider_value
+
+    slider_value_out = slider_value if trigger_id == "bcl_slider" else box_value
+
+    return box_value_out, slider_value_out
+
+
+
+
+
+
+
 
 
 
