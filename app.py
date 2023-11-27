@@ -558,9 +558,9 @@ app.layout = html.Div([navbar, body_layout])
 def sync_input(bcl, bpm):
     input_id = ctx.triggered[0]["prop_id"].split(".")[0]
     if input_id == "bcl":
-        bpm= None if bcl is None else int(60_000/float(bcl)*100)/100
+        bpm= None if bcl is None else int(60000/float(bcl)*100)/100
     else:
-        bcl = None if bpm is None else int(60_000/float(bpm)*100)/100
+        bcl = None if bpm is None else int(60000/float(bpm)*100)/100
     return bcl, bpm
 
 
