@@ -27,8 +27,8 @@ import app_functions as funs
 # https://dash.gallery/dash-cytoscape-lda/?_gl=1*1n1w6iy*_ga*MTkwMzI4NzAyLjE2NjY4MDg0MDg.*_ga_6G7EE0JNSC*MTcwMDI2MTU3MS4xMDguMS4xNzAwMjYyNTY0LjYwLjAuMA..#
 
 # Determine if running app locally or on cloud
-fileroot_local = '/Users/tbury/Google Drive/research/postdoc_23/ap_simulation_app/'
-fileroot_cloud = '/home/ubuntu/ap_simulation_app/'
+fileroot_local = '/Users/tbury/Google Drive/research/postdoc_23/ap-simulator'
+fileroot_cloud = '/home/ubuntu/ap-simulator/'
 
 if os.getcwd()==fileroot_local[:-1]:
     run_cloud=False
@@ -60,18 +60,17 @@ navbar = dbc.NavbarSimple(
 )
 
 
-
 # Initialise app
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 server=app.server
 
-# # If running in cloud, adjust prefix
-# if run_cloud:
-# 	app.config.update({  
-# 	# Change this to directory name used in WSGIAlias
-# 		'requests_pathname_prefix': '/ap_exploration/',
-# 	})
-# 	print('Updated prefix')
+# If running in cloud, adjust prefix
+if run_cloud:
+	app.config.update({  
+	# Change this to directory name used in WSGIAlias
+		'requests_pathname_prefix': '/ap-simulator/',
+	})
+	print('Updated prefix')
 
 
 # Dictionary to map to param labels used in Torord
