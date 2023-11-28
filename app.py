@@ -65,12 +65,12 @@ app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 server=app.server
 
 # If running in cloud, adjust prefix
-if run_cloud:
-	app.config.update({  
-	# Change this to directory name used in WSGIAlias
-		'requests_pathname_prefix': '/ap-simulator/',
-	})
-	print('Updated prefix')
+#if run_cloud:
+#	app.config.update({  
+#	# Change this to directory name used in WSGIAlias
+#		'requests_pathname_prefix': '/ap-simulator/',
+#	})
+#	print('Updated prefix')
 
 
 # Dictionary to map to param labels used in Torord
