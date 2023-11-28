@@ -61,7 +61,7 @@ navbar = dbc.NavbarSimple(
 
 
 # Initialise app
-app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], requests_pathname_prefix='/ap-simulator/')
 server=app.server
 
 # If running in cloud, adjust prefix
