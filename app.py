@@ -20,6 +20,14 @@ import myokit as myokit
 import app_functions as funs
 
 
+# Notes of things to fix
+# - labels on sliders same as labels on tabs
+# - run button next to save button
+# - max value for total_beats
+# - timeout for simulation callback
+# - pin wheel next to run
+
+
 # Inspired by this example
 # https://dash.gallery/dash-cytoscape-lda/?_gl=1*1n1w6iy*_ga*MTkwMzI4NzAyLjE2NjY4MDg0MDg.*_ga_6G7EE0JNSC*MTcwMDI2MTU3MS4xMDguMS4xNzAwMjYyNTY0LjYwLjAuMA..#
 
@@ -221,6 +229,9 @@ body_layout = dbc.Container(
                                     type="number",
                                     style=dict(width=80, display="inline-block"),
                                     placeholder=total_beats_def,
+                                    min=1,
+                                    max=200,
+                                    step=1,
                                 ),
                             ],
                             style=dict(display="inline-block", width="100%"),
@@ -235,6 +246,9 @@ body_layout = dbc.Container(
                                     type="number",
                                     style=dict(width=80),
                                     placeholder=beats_keep_def,
+                                    min=1,
+                                    max=20,
+                                    step=1,
                                 ),
                                 html.Label(" beats ", style=dict(fontSize=14)),
                             ]

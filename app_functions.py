@@ -65,7 +65,7 @@ def sim_model(s, params={}, bcl=1000, total_beats=100, beats_keep=4, cell_type=0
     s.set_protocol(p)
 
     # Pre-pacing simulation
-    num_beats_pre = total_beats - beats_keep
+    num_beats_pre = max(total_beats - beats_keep, 0)
     print("Begin prepacing")
     s.pre(num_beats_pre * bcl)
 
