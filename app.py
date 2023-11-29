@@ -256,21 +256,6 @@ body_layout = dbc.Container(
                         dbc.Row(
                             [
                                 dbc.Col(
-                                    # Run button
-                                    html.Div(
-                                        [
-                                            dbc.Button(
-                                                "Run",
-                                                id="run_button",
-                                                className="me-2",
-                                                n_clicks=0,
-                                                style=dict(fontSize=14),
-                                            ),
-                                        ]
-                                    ),
-                                    width=4,
-                                ),
-                                dbc.Col(
                                     # Loading animation
                                     html.Div(
                                         [
@@ -313,51 +298,51 @@ body_layout = dbc.Container(
                                     ],
                                     width=4,
                                 ),
-                                # Save button
-                                dbc.Col(
-                                    [
-                                        html.Label(
-                                            "Save myokit", style=dict(fontSize=14)
-                                        ),
-                                        dbc.Button(
-                                            "Save",
-                                            id="example-button",
-                                            className="me-2",
-                                            n_clicks=0,
-                                            style=dict(fontSize=14),
-                                        ),
-                                    ],
-                                    width=4,
-                                ),
-                                # Load button
-                                dbc.Col(
-                                    [
-                                        html.Label(
-                                            "Load myokit", style=dict(fontSize=14)
-                                        ),
-                                        dcc.Upload(
-                                            id="load-myokit",
-                                            children=html.Div(
-                                                [
-                                                    "drag+drop",
-                                                ]
-                                            ),
-                                            style={
-                                                "width": "100%",
-                                                "height": "35px",
-                                                "lineHeight": "30px",
-                                                "borderWidth": "1px",
-                                                "borderStyle": "dashed",
-                                                "borderRadius": "5px",
-                                                "textAlign": "center",
-                                                "margin": "0px",
-                                                "fontSize": 14,
-                                            },
-                                            multiple=False,
-                                        ),
-                                    ],
-                                    width=4,
-                                ),
+                                # # Save button
+                                # dbc.Col(
+                                #     [
+                                #         html.Label(
+                                #             "Save myokit", style=dict(fontSize=14)
+                                #         ),
+                                #         dbc.Button(
+                                #             "Save",
+                                #             id="example-button",
+                                #             className="me-2",
+                                #             n_clicks=0,
+                                #             style=dict(fontSize=14),
+                                #         ),
+                                #     ],
+                                #     width=4,
+                                # ),
+                                # # Load button
+                                # dbc.Col(
+                                #     [
+                                #         html.Label(
+                                #             "Load myokit", style=dict(fontSize=14)
+                                #         ),
+                                #         dcc.Upload(
+                                #             id="load-myokit",
+                                #             children=html.Div(
+                                #                 [
+                                #                     "drag+drop",
+                                #                 ]
+                                #             ),
+                                #             style={
+                                #                 "width": "100%",
+                                #                 "height": "35px",
+                                #                 "lineHeight": "30px",
+                                #                 "borderWidth": "1px",
+                                #                 "borderStyle": "dashed",
+                                #                 "borderRadius": "5px",
+                                #                 "textAlign": "center",
+                                #                 "margin": "0px",
+                                #                 "fontSize": 14,
+                                #             },
+                                #             multiple=False,
+                                #         ),
+                                #     ],
+                                #     width=4,
+                                # ),
                             ]
                         ),
                         html.Br(),
@@ -382,37 +367,77 @@ body_layout = dbc.Container(
                                 "display": "inline-block",
                             },
                         ),
-                        # Button to save simulation data
-                        html.Div(
+                        dbc.Row(
                             [
-                                dbc.Button(
-                                    "Save data",
-                                    id="button_savedata",
-                                    className="me-2",
-                                    n_clicks=0,
-                                    style=dict(fontSize=14),
+                                dbc.Col(
+                                    # Run button
+                                    html.Div(
+                                        [
+                                            dbc.Button(
+                                                "Run",
+                                                id="run_button",
+                                                color="success",
+                                                n_clicks=0,
+                                                style=dict(fontSize=14),
+                                            ),
+                                        ],
+                                        className="d-grid gap-2",
+                                    ),
+                                    width=dict(size=2, offset=8),
                                 ),
-                                dcc.Download(id="download_simulation"),
-                            ],
-                            style={
-                                "width": "100%",
-                                "fontSize": 12,
-                                "padding-left": "85%",
-                                "padding-right": "2%",
-                                "padding-top": "0%",
-                                "vertical-align": "middle",
-                                "display": "inline-block",
-                            },
+                                dbc.Col(
+                                    # Save button
+                                    html.Div(
+                                        [
+                                            dbc.Button(
+                                                "Save data",
+                                                id="button_savedata",
+                                                className="d-grid gap-2",
+                                                n_clicks=0,
+                                                style=dict(fontSize=14),
+                                            ),
+                                            dcc.Download(id="download_simulation"),
+                                            # Storage component for simulation data
+                                            dcc.Store(id="simulation_data"),
+                                        ],
+                                        className="d-grid gap-2",
+                                    ),
+                                    width=dict(size=2, offset=0),
+                                ),
+                            ]
                         ),
-                        # Storage component for simulation data
-                        dcc.Store(id="simulation_data"),
-                    ],
-                    width=8,
+                    ]
                 ),
             ]
         )
     ]
 )
+
+# # Button to save simulation data
+# html.Div(
+#     [
+#         dbc.Button(
+#             "Save data",
+#             id="button_savedata",
+#             className="me-2",
+#             n_clicks=0,
+#             style=dict(fontSize=14),
+#         ),
+#         dcc.Download(id="download_simulation"),
+#     ],
+#     style={
+#         "width": "100%",
+#         "fontSize": 12,
+#         "padding-left": "85%",
+#         "padding-right": "2%",
+#         "padding-top": "0%",
+#         "vertical-align": "middle",
+#         "display": "inline-block",
+#     },
+# ),
+
+# ),
+
 
 app.layout = html.Div([navbar, body_layout])
 
