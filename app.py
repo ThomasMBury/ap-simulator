@@ -253,29 +253,29 @@ body_layout = dbc.Container(
                                 html.Label(" beats ", style=dict(fontSize=14)),
                             ]
                         ),
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    # Loading animation
-                                    html.Div(
-                                        [
-                                            dcc.Loading(
-                                                id="loading-anim",
-                                                type="circle",
-                                                children=html.Div(id="loading-output"),
-                                                # color="#2ca02c",
-                                            ),
-                                        ],
-                                        style={
-                                            "padding-bottom": "10px",
-                                            "padding-top": "20px",
-                                            "vertical-align": "middle",
-                                        },
-                                    ),
-                                    width=8,
-                                ),
-                            ]
-                        ),
+                        # dbc.Row(
+                        #     [
+                        #         dbc.Col(
+                        #             # Loading animation
+                        #             html.Div(
+                        #                 [
+                        #                     dcc.Loading(
+                        #                         id="loading-anim",
+                        #                         type="circle",
+                        #                         children=html.Div(id="loading-output"),
+                        #                         # color="#2ca02c",
+                        #                     ),
+                        #                 ],
+                        #                 style={
+                        #                     "padding-bottom": "10px",
+                        #                     "padding-top": "20px",
+                        #                     "vertical-align": "middle",
+                        #                 },
+                        #             ),
+                        #             width=8,
+                        #         ),
+                        #     ]
+                        # ),
                         dcc.Markdown(
                             """
                             -----
@@ -370,6 +370,25 @@ body_layout = dbc.Container(
                         dbc.Row(
                             [
                                 dbc.Col(
+                                    # Loading animation
+                                    html.Div(
+                                        [
+                                            dcc.Loading(
+                                                id="loading-anim",
+                                                type="circle",
+                                                children=html.Div(id="loading-output"),
+                                                # color="#2ca02c",
+                                            ),
+                                        ],
+                                        style={
+                                            "padding-bottom": "10px",
+                                            "padding-top": "20px",
+                                            "vertical-align": "middle",
+                                        },
+                                    ),
+                                    width=dict(size=1, offset=7),
+                                ),
+                                dbc.Col(
                                     # Run button
                                     html.Div(
                                         [
@@ -383,7 +402,7 @@ body_layout = dbc.Container(
                                         ],
                                         className="d-grid gap-2",
                                     ),
-                                    width=dict(size=2, offset=8),
+                                    width=2,
                                 ),
                                 dbc.Col(
                                     # Save button
