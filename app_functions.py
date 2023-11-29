@@ -129,32 +129,10 @@ def make_simulation_fig(df_sim, var_plot):
 
     fig.update_layout(
         height=600,
-        margin={"l": 20, "r": 20, "t": 20, "b": 20},
+        margin={"l": 20, "r": 20, "t": 30, "b": 20},
     )
 
     return fig
-
-
-def make_fig_tabs(df_sim):
-    cols = df_sim.columns
-
-    list_tabs = []
-
-    for var in cols:
-        if var == "time":
-            continue
-
-        tab = dcc.Tab(
-            label=var,
-            children=[dcc.Graph(figure=make_simulation_fig(df_sim, var))],
-            id="fig_{}".format(var),
-        )
-
-        list_tabs.append(tab)
-
-    fig_tabs = dcc.Tabs(list_tabs, id="fig_plot")
-
-    return fig_tabs
 
 
 # Test functions

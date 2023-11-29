@@ -108,6 +108,7 @@ for var in list_vars:
     fig = dcc.Graph(
         figure=funs.make_simulation_fig(df_sim, var),
         id="fig_{}".format(var),
+        style=dict(height=600),
     )
     tab = dcc.Tab(label=var, children=[fig])
     list_tabs.append(tab)
@@ -118,12 +119,6 @@ fig_tabs = dcc.Tabs(list_tabs)
 # ------------
 # App layout
 # --------------
-
-# # Slider tick marks
-# slider_marks_multipliers = {
-#     int(x) if x % 1 == 0 else x: str(x)
-#     for x in np.arange(slider_min, slider_max + 0.01, 0.5)
-# }
 
 
 def make_slider(label, id_stem, default_value, slider_range):
@@ -199,10 +194,10 @@ body_layout = dbc.Container(
                                 ),
                                 dcc.Input(
                                     id="bcl",
-                                    value=1000,
+                                    value=bcl_def,
                                     type="number",
                                     style=dict(width=80, display="inline-block"),
-                                    placeholder=1000,
+                                    placeholder=bcl_def,
                                 ),
                                 html.Label(", BPM = ", style=dict(fontSize=14)),
                                 dcc.Input(
@@ -221,11 +216,11 @@ body_layout = dbc.Container(
                                     style=dict(fontSize=14, display="inline-block"),
                                 ),
                                 dcc.Input(
-                                    id="num_beats",
-                                    value=10,
+                                    id="total_beats",
+                                    value=total_beats_def,
                                     type="number",
                                     style=dict(width=80, display="inline-block"),
-                                    placeholder=10,
+                                    placeholder=total_beats_def,
                                 ),
                             ],
                             style=dict(display="inline-block", width="100%"),
@@ -235,24 +230,50 @@ body_layout = dbc.Container(
                             [
                                 html.Label("Show last ", style=dict(fontSize=14)),
                                 dcc.Input(
-                                    id="show_last",
-                                    value=1,
+                                    id="beats_keep",
+                                    value=beats_keep_def,
                                     type="number",
                                     style=dict(width=80),
-                                    placeholder=1,
+                                    placeholder=beats_keep_def,
                                 ),
                                 html.Label(" beats ", style=dict(fontSize=14)),
                             ]
                         ),
-                        # Run button
-                        html.Div(
+                        dbc.Row(
                             [
-                                dbc.Button(
-                                    "Run",
-                                    id="run_button",
-                                    className="me-2",
-                                    n_clicks=0,
-                                    style=dict(fontSize=14),
+                                dbc.Col(
+                                    # Run button
+                                    html.Div(
+                                        [
+                                            dbc.Button(
+                                                "Run",
+                                                id="run_button",
+                                                className="me-2",
+                                                n_clicks=0,
+                                                style=dict(fontSize=14),
+                                            ),
+                                        ]
+                                    ),
+                                    width=4,
+                                ),
+                                dbc.Col(
+                                    # Loading animation
+                                    html.Div(
+                                        [
+                                            dcc.Loading(
+                                                id="loading-anim",
+                                                type="circle",
+                                                children=html.Div(id="loading-output"),
+                                                # color="#2ca02c",
+                                            ),
+                                        ],
+                                        style={
+                                            "padding-bottom": "10px",
+                                            "padding-top": "20px",
+                                            "vertical-align": "middle",
+                                        },
+                                    ),
+                                    width=8,
                                 ),
                             ]
                         ),
@@ -271,7 +292,7 @@ body_layout = dbc.Container(
                                         dcc.Dropdown(
                                             ["endo", "epi", "mid"],
                                             "endo",
-                                            id="demo-dropdown",
+                                            id="cell_type",
                                             clearable=False,
                                             style=dict(fontSize=14),
                                         ),
@@ -332,20 +353,46 @@ body_layout = dbc.Container(
                     width=4,
                 ),
                 dbc.Col(
-                    # Figure
-                    html.Div(
-                        fig_tabs,
-                        style={
-                            "width": "100%",
-                            "height": "1000px",
-                            "fontSize": "10px",
-                            "padding-left": "2%",
-                            "padding-right": "2%",
-                            "padding-top": "2%",
-                            "vertical-align": "middle",
-                            "display": "inline-block",
-                        },
-                    ),
+                    [
+                        # Figure
+                        html.Div(
+                            fig_tabs,
+                            style={
+                                "width": "100%",
+                                # "height": "1000px",
+                                "fontSize": 12,
+                                "padding-left": "2%",
+                                "padding-right": "2%",
+                                "padding-top": "2%",
+                                "vertical-align": "middle",
+                                "display": "inline-block",
+                            },
+                        ),
+                        # Button to save simulation data
+                        html.Div(
+                            [
+                                dbc.Button(
+                                    "Save data",
+                                    id="button_savedata",
+                                    className="me-2",
+                                    n_clicks=0,
+                                    style=dict(fontSize=14),
+                                ),
+                                dcc.Download(id="download_simulation"),
+                            ],
+                            style={
+                                "width": "100%",
+                                "fontSize": 12,
+                                "padding-left": "85%",
+                                "padding-right": "2%",
+                                "padding-top": "0%",
+                                "vertical-align": "middle",
+                                "display": "inline-block",
+                            },
+                        ),
+                        # Storage component for simulation data
+                        dcc.Store(id="simulation_data"),
+                    ],
                     width=8,
                 ),
             ]
@@ -361,7 +408,7 @@ app.layout = html.Div([navbar, body_layout])
 # -------------------
 
 
-# Callback function to sync BCL and BPM boxes
+### Callback function to sync BCL and BPM boxes
 @app.callback(
     [
         Output("bcl", "value"),
@@ -381,7 +428,7 @@ def sync_input(bcl, bpm):
     return bcl, bpm
 
 
-# Callback functions to sync sliders with input box
+### Callback functions to sync sliders with input box
 def sync_slider_box(box_value, slider_value):
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
     box_value_out = box_value if trigger_id[-3:] == "box" else slider_value
@@ -403,72 +450,77 @@ for par in dict_par_labels.keys():
     )(sync_slider_box)
 
 
-# Callback function for model simulation and update of figure
+### Callback to save simulation data
 @app.callback(
-    [Output("fig_{}".format(var), "figure") for var in list_vars],
-    [Input("run_button", "n_clicks")],
-    [State("{}_box".format(par), "value") for par in dict_par_labels.keys()],
+    Output("download_simulation", "data"),
+    Input("button_savedata", "n_clicks"),
+    State("simulation_data", "data"),
+    prevent_initial_call=True,
 )
-def update_fig(n_clicks, a, b, c, d, e, f, g):
+def func(n_clicks, stored_data):
+    df = pd.DataFrame(stored_data["data-frame"])
+    return dcc.send_data_frame(df.to_csv, "simulation_data.csv")
+
+
+### Callback function for model simulation and update of figure
+@app.callback(
+    [Output("fig_{}".format(var), "figure") for var in list_vars]  # all figure outputs
+    + [Output("loading-output", "children")]  # loading output
+    + [Output("simulation_data", "data")],  # storage of simulation data
+    [Input("run_button", "n_clicks")],
+    [
+        State("bcl", "value"),
+        State("total_beats", "value"),
+        State("beats_keep", "value"),
+        State("cell_type", "value"),
+    ]
+    + [State("{}_box".format(par), "value") for par in dict_par_labels.keys()],
+)
+def update_fig(
+    n_clicks,
+    bcl,
+    total_beats,
+    beats_keep,
+    cell_type,
+    ina_mult,
+    ito_mult,
+    ical_mult,
+    ikr_mult,
+    iks_mult,
+    inaca_mult,
+    tjca_mult,
+):
+    # Updated model parameter values
+    params = {}
+    params[dict_par_labels["ina"]] = params_default["ina"] * ina_mult
+    params[dict_par_labels["ical"]] = params_default["ical"] * ical_mult
+    params[dict_par_labels["ikr"]] = params_default["ikr"] * ikr_mult
+    params[dict_par_labels["iks"]] = params_default["iks"] * iks_mult
+    params[dict_par_labels["inaca"]] = params_default["inaca"] * inaca_mult
+    params[dict_par_labels["ito"]] = params_default["ito"] * ito_mult
+    params[dict_par_labels["tjca"]] = params_default["tjca"] * tjca_mult
+
+    cell_type_dict = {"endo": 0, "epi": 1, "mid": 2}
+
     # Run simulation
     df_sim = funs.sim_model(
-        s, params={}, bcl=1000, total_beats=100, beats_keep=4, cell_type=0
+        s,
+        params=params,
+        bcl=bcl,
+        total_beats=total_beats,
+        beats_keep=beats_keep,
+        cell_type=cell_type_dict[cell_type],
     )
+
+    # Need to convert df to dict to store as json
+    stored_data = {"data-frame": df_sim.to_dict("records")}
 
     list_figs = []
     for var in list_vars:
         fig = funs.make_simulation_fig(df_sim, var)
         list_figs.append(fig)
 
-    return list_figs
-
-
-# # Update figure based on change in a model parameter
-# @app.callback([Output('fig_voltage','figure'),
-#                 Output('loading-output','children'),
-#                 ],
-#               [
-#                 Input('bcl_slider','value'),
-#                 Input('num_beats_slider','value'),
-#                 Input('ina_slider','value'),
-#                 Input('ical_slider','value'),
-#                 Input('ikr_slider','value'),
-#                 Input('iks_slider','value'),
-#                 Input('inaca_slider','value'),
-#                 Input('ito_slider','value'),
-#                 Input('tjca_slider','value'),
-#                 ]
-#               )
-
-# def update_fig(bcl, num_beats,
-#                 ina_mult, ical_mult, ikr_mult,
-#                 iks_mult, inaca_mult, ito_mult,
-#                 tjca_mult):
-
-#     # print('using inaca={}'.format(inaca_mult))
-
-#     # Make dict of updated model parameter vlaues
-#     params = {}
-#     params[dict_par_labels['ina']] = params_default['ina']*ina_mult
-#     params[dict_par_labels['ical']] = params_default['ical']*ical_mult
-#     params[dict_par_labels['ikr']] = params_default['ikr']*ikr_mult
-#     params[dict_par_labels['iks']] = params_default['iks']*iks_mult
-#     params[dict_par_labels['inaca']] = params_default['inaca']*inaca_mult
-#     params[dict_par_labels['ito']] = params_default['ito']*ito_mult
-#     params[dict_par_labels['tjca']] = params_default['tjca']*tjca_mult
-
-
-#     # Run simulation
-#     df_mod = sim_model(s,
-#                         params=params,
-#                         bcl=bcl,
-#                         num_beats = num_beats
-#                         )
-
-#     # Make figure
-#     fig = generate_fig(df_base, df_mod)
-
-#     return [fig, '']
+    return list_figs + [""] + [stored_data]
 
 
 if __name__ == "__main__":
