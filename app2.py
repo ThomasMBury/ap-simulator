@@ -199,7 +199,6 @@ def make_slider(label="ICaL", id_prefix="ical", default_value=1, slider_range=[0
                                 id="{}_slider".format(id_prefix),
                                 min=slider_range[0],
                                 max=slider_range[1],
-                                # step=10,
                                 marks={i: "{}".format(i) for i in range(4)},
                                 value=default_value,
                             ),
@@ -214,6 +213,7 @@ def make_slider(label="ICaL", id_prefix="ical", default_value=1, slider_range=[0
                                 type="number",
                                 min=slider_range[0],
                                 max=slider_range[1],
+                                step=0.01,
                                 value=default_value,
                                 style=dict(width=80, display="inline-block"),
                             ),
@@ -359,6 +359,7 @@ body_layout = dbc.Container(
                                     placeholder=params_default["extracellular.cao"],
                                     min=0,
                                     max=1000,
+                                    step=0.1,
                                 ),
                             ],
                         ),
@@ -373,6 +374,7 @@ body_layout = dbc.Container(
                                     placeholder=params_default["extracellular.clo"],
                                     min=0,
                                     max=1000,
+                                    step=0.1,
                                 ),
                             ],
                         ),
@@ -387,6 +389,7 @@ body_layout = dbc.Container(
                                     placeholder=params_default["extracellular.ko"],
                                     min=0,
                                     max=1000,
+                                    step=0.1,
                                 ),
                             ],
                         ),
@@ -401,6 +404,7 @@ body_layout = dbc.Container(
                                     placeholder=params_default["extracellular.nao"],
                                     min=0,
                                     max=1000,
+                                    step=0.1,
                                 ),
                             ],
                         ),
@@ -461,7 +465,7 @@ body_layout = dbc.Container(
                                     width=2,
                                 ),
                                 dbc.Col(
-                                    # Save button
+                                    # SAVE BUTTON
                                     html.Div(
                                         [
                                             dbc.Button(
@@ -472,8 +476,10 @@ body_layout = dbc.Container(
                                                 style=dict(fontSize=14),
                                             ),
                                             dcc.Download(id="download_simulation"),
-                                            # Storage component for simulation data
+                                            dcc.Download(id="download_parameters"),
+                                            # Storage component for simulation and parameter data
                                             dcc.Store(id="simulation_data"),
+                                            dcc.Store(id="parameter_data"),
                                         ],
                                         className="d-grid gap-2",
                                     ),
@@ -540,25 +546,36 @@ for par in list_params_cond:
     )(sync_slider_box)
 
 
-### Callback to save simulation data
+### Callback to save simulation and parameter data
 @app.callback(
-    Output("download_simulation", "data"),
+    [
+        Output("download_simulation", "data"),
+        Output("download_parameters", "data"),
+    ],
     Input("button_savedata", "n_clicks"),
     State("simulation_data", "data"),
+    State("parameter_data", "data"),
     prevent_initial_call=True,
 )
-def func(n_clicks, stored_data):
-    df = pd.DataFrame(stored_data["data-frame"])
-    return dcc.send_data_frame(df.to_csv, "simulation_data.csv")
+def func(n_clicks, simulation_data, parameter_data):
+    df_sim = pd.DataFrame(simulation_data["data-frame"])
+    df_pars = pd.DataFrame()
+    df_pars["name"] = parameter_data.keys()
+    df_pars["value"] = parameter_data.values()
+    # df_pars = df_pars.astype("object")
+    out1 = dcc.send_data_frame(df_sim.to_csv, "simulation_data.csv")
+    out2 = dcc.send_data_frame(df_pars.to_csv, "parameters.csv")
+    return [out1, out2]
 
 
 ### Callback function on RUN button click - run simulation and make figure
 
-# Output includes (i) all figures, (ii) loading sign (iii) simulation data for download
+# Output includes (i) all figures, (ii) loading sign (iii) simulation and parameter data for download
 output = (
     [Output("fig_{}".format(var), "figure") for var in list_vars]
     + [Output("loading-output", "children")]
     + [Output("simulation_data", "data")]
+    + [Output("parameter_data", "data")]
 )
 
 # all parameter values contained in sliders + boxes
@@ -603,6 +620,12 @@ def update_fig(
     for par in list_params_extracell:
         params[par] = params_extracell[par]
 
+    # Make dict contianing all parameter values to save
+    parameter_data = params.copy()
+    parameter_data["bcl"] = bcl
+    parameter_data["total_beats"] = total_beats
+    parameter_data["beats_keep"] = beats_keep
+
     cell_type_dict = {"endo": 0, "epi": 1, "mid": 2}
 
     # Run simulation
@@ -616,7 +639,7 @@ def update_fig(
     )
 
     # Need to convert df to dict to store as json
-    stored_data = {"data-frame": df_sim.to_dict("records")}
+    simulation_data = {"data-frame": df_sim.to_dict("records")}
 
     list_figs = []
     for var in list_vars:
@@ -624,7 +647,7 @@ def update_fig(
         list_figs.append(fig)
 
     # List of outputs [figs, loading, data]
-    return list_figs + [""] + [stored_data]
+    return list_figs + ["", simulation_data, parameter_data]
 
 
 if __name__ == "__main__":
