@@ -78,29 +78,49 @@ app = Dash(
 server = app.server
 
 
-# Dictionary to map paramter label to parameter stored in mmt file
-label_to_par = dict(
-    INa="INa.GNa",  # membrane_fast_sodium_current_conductance
-    INaL="INaL.GNaL_b",  # membrane_persistent_sodium_current_conductance
-    ICaL="ICaL.PCa_b",  # membrane_L_type_calcium_current_conductance
-    Ito="Ito.Gto_b",  # membrane_transient_outward_current_conductance
-    INaCa="INaCa.Gncx_b",  # membrane_sodium_calcium_exchanger_current_conductance
-    INaK="INaK.Pnak_b",  # membrane_sodium_potassium_pump_current_permeability
-    IKr="IKr.GKr_b",  # membrane_rapid_delayed_rectifier_potassium_current_conductance
-    IKs="IKs.GKs_b",  # membrane_slow_delayed_rectifier_potassium_current_conductance
-    IK1="IK1.GK1_b",  # membrane_inward_rectifier_potassium_current_conductance
-    Jrel="ryr.Jrel_b",  # SR_release_current_max
-    Jup="SERCA.Jup_b",  # SR_uptake_current_max
-)
+# # Dictionary to map paramter label to parameter stored in mmt file
+# label_to_par = dict(
+#     INa="INa.GNa",  # membrane_fast_sodium_current_conductance
+#     INaL="INaL.GNaL_b",  # membrane_persistent_sodium_current_conductance
+#     ICaL="ICaL.PCa_b",  # membrane_L_type_calcium_current_conductance
+#     Ito="Ito.Gto_b",  # membrane_transient_outward_current_conductance
+#     INaCa="INaCa.Gncx_b",  # membrane_sodium_calcium_exchanger_current_conductance
+#     INaK="INaK.Pnak_b",  # membrane_sodium_potassium_pump_current_permeability
+#     IKr="IKr.GKr_b",  # membrane_rapid_delayed_rectifier_potassium_current_conductance
+#     IKs="IKs.GKs_b",  # membrane_slow_delayed_rectifier_potassium_current_conductance
+#     IK1="IK1.GK1_b",  # membrane_inward_rectifier_potassium_current_conductance
+#     Jrel="ryr.Jrel_b",  # SR_release_current_max
+#     Jup="SERCA.Jup_b",  # SR_uptake_current_max
+# )
 
-# Map for parameters of extracellular matrix
-label_to_par_extra = dict(
-    Cao="extracellular.cao",  # extracellular_calcium_concentration
-    Clo="extracellular.clo",
-    Nao="extracellular.nao",  # extracellular_sodium_concentration
-    Ko="extracellular.ko",  # extracellular_potassium_concentration
-)
+# # Map for parameters of extracellular matrix
+# label_to_par_extra = dict(
+#     Cao="extracellular.cao",  # extracellular_calcium_concentration
+#     Clo="extracellular.clo",
+#     Nao="extracellular.nao",  # extracellular_sodium_concentration
+#     Ko="extracellular.ko",  # extracellular_potassium_concentration
+# )
 
+list_params_cond = [
+    "INa.GNa",
+    "INaL.GNaL_b",
+    "ICaL.PCa_b",
+    "Ito.Gto_b",
+    "INaCa.Gncx_b",
+    "INaK.Pnak_b",
+    "IKr.GKr_b",
+    "IKs.GKs_b",
+    "IK1.GK1_b",
+    "ryr.Jrel_b",
+    "SERCA.Jup_b",
+]
+
+list_params_extracell = [
+    "extracellular.cao",
+    "extracellular.clo",
+    "extracellular.nao",
+    "extracellular.ko",
+]
 
 # Load in model from mmt file
 filepath_mmt = fileroot + "/mmt_files/torord-2019.mmt"
@@ -109,9 +129,13 @@ m = myokit.load_model(filepath_mmt)
 # Create simulation object with model
 s = myokit.Simulation(m)
 
-# Get default parameter values used in Torord (to then apply multipliers)
+# Get default parameter values from mmt file
+# params_default = {
+#     label: m.get(label_to_par[label]).value() for label in label_to_par.keys()
+# }
+
 params_default = {
-    label: m.get(label_to_par[label]).value() for label in label_to_par.keys()
+    par: m.get(par).value() for par in list_params_cond + list_params_extracell
 }
 
 # Default protocol values
@@ -145,7 +169,7 @@ fig_tabs = dcc.Tabs(list_tabs)
 # --------------
 
 
-def make_slider(label, id_prefix, default_value, slider_range):
+def make_slider(label="ICaL", id_prefix="ical", default_value=1, slider_range=[0, 3]):
     """Make a connected slider and input box for a parameter in the model
 
     Args:
@@ -203,10 +227,12 @@ def make_slider(label, id_prefix, default_value, slider_range):
     return slider
 
 
-# Make sliders for model parameters
+# Make sliders for conductances
 list_sliders = []
-for par in label_to_par.keys():
-    slider = make_slider(par, par, 1, [0, 3])
+for par in list_params_cond:
+    slider = make_slider(
+        label=par, id_prefix=par.replace(".", "_"), default_value=1, slider_range=[0, 3]
+    )
     list_sliders.append(slider)
 
 
@@ -285,33 +311,10 @@ body_layout = dbc.Container(
                                 html.Label(" beats ", style=dict(fontSize=14)),
                             ]
                         ),
-                        # dbc.Row(
-                        #     [
-                        #         dbc.Col(
-                        #             # Loading animation
-                        #             html.Div(
-                        #                 [
-                        #                     dcc.Loading(
-                        #                         id="loading-anim",
-                        #                         type="circle",
-                        #                         children=html.Div(id="loading-output"),
-                        #                         # color="#2ca02c",
-                        #                     ),
-                        #                 ],
-                        #                 style={
-                        #                     "padding-bottom": "10px",
-                        #                     "padding-top": "20px",
-                        #                     "vertical-align": "middle",
-                        #                 },
-                        #             ),
-                        #             width=8,
-                        #         ),
-                        #     ]
-                        # ),
                         dcc.Markdown(
                             """
                             -----
-                            **Model selection and parameters**:
+                            **Cell type and current multipliers**:
                             """
                         ),
                         dbc.Row(
@@ -319,7 +322,9 @@ body_layout = dbc.Container(
                                 # Model type
                                 dbc.Col(
                                     [
-                                        html.Label("Model", style=dict(fontSize=14)),
+                                        html.Label(
+                                            "Cell type", style=dict(fontSize=14)
+                                        ),
                                         dcc.Dropdown(
                                             ["endo", "epi", "mid"],
                                             "endo",
@@ -330,57 +335,76 @@ body_layout = dbc.Container(
                                     ],
                                     width=4,
                                 ),
-                                # # Save button
-                                # dbc.Col(
-                                #     [
-                                #         html.Label(
-                                #             "Save myokit", style=dict(fontSize=14)
-                                #         ),
-                                #         dbc.Button(
-                                #             "Save",
-                                #             id="example-button",
-                                #             className="me-2",
-                                #             n_clicks=0,
-                                #             style=dict(fontSize=14),
-                                #         ),
-                                #     ],
-                                #     width=4,
-                                # ),
-                                # # Load button
-                                # dbc.Col(
-                                #     [
-                                #         html.Label(
-                                #             "Load myokit", style=dict(fontSize=14)
-                                #         ),
-                                #         dcc.Upload(
-                                #             id="load-myokit",
-                                #             children=html.Div(
-                                #                 [
-                                #                     "drag+drop",
-                                #                 ]
-                                #             ),
-                                #             style={
-                                #                 "width": "100%",
-                                #                 "height": "35px",
-                                #                 "lineHeight": "30px",
-                                #                 "borderWidth": "1px",
-                                #                 "borderStyle": "dashed",
-                                #                 "borderRadius": "5px",
-                                #                 "textAlign": "center",
-                                #                 "margin": "0px",
-                                #                 "fontSize": 14,
-                                #             },
-                                #             multiple=False,
-                                #         ),
-                                #     ],
-                                #     width=4,
-                                # ),
                             ]
                         ),
                         html.Br(),
                     ]
                     # Div for slider and input box
-                    + list_sliders,
+                    + list_sliders
+                    + [
+                        dcc.Markdown(
+                            """
+                            -----
+                            **Extracellular concentrations**:
+                            """
+                        ),
+                        html.Div(
+                            [
+                                html.Label("Cao =", style=dict(fontSize=14)),
+                                dcc.Input(
+                                    id="extracellular_cao_box",
+                                    value=params_default["extracellular.cao"],
+                                    type="number",
+                                    style=dict(width=80, display="inline-block"),
+                                    placeholder=params_default["extracellular.cao"],
+                                    min=0,
+                                    max=1000,
+                                ),
+                            ],
+                        ),
+                        html.Div(
+                            [
+                                html.Label("Cao =", style=dict(fontSize=14)),
+                                dcc.Input(
+                                    id="extracellular_clo_box",
+                                    value=params_default["extracellular.clo"],
+                                    type="number",
+                                    style=dict(width=80, display="inline-block"),
+                                    placeholder=params_default["extracellular.clo"],
+                                    min=0,
+                                    max=1000,
+                                ),
+                            ],
+                        ),
+                        html.Div(
+                            [
+                                html.Label("Ko =", style=dict(fontSize=14)),
+                                dcc.Input(
+                                    id="extracellular_ko_box",
+                                    value=params_default["extracellular.ko"],
+                                    type="number",
+                                    style=dict(width=80, display="inline-block"),
+                                    placeholder=params_default["extracellular.ko"],
+                                    min=0,
+                                    max=1000,
+                                ),
+                            ],
+                        ),
+                        html.Div(
+                            [
+                                html.Label("Nao =", style=dict(fontSize=14)),
+                                dcc.Input(
+                                    id="extracellular_nao_box",
+                                    value=params_default["extracellular.nao"],
+                                    type="number",
+                                    style=dict(width=80, display="inline-block"),
+                                    placeholder=params_default["extracellular.nao"],
+                                    min=0,
+                                    max=1000,
+                                ),
+                            ],
+                        ),
+                    ],
                     width=4,
                 ),
                 dbc.Col(
@@ -464,31 +488,6 @@ body_layout = dbc.Container(
     ]
 )
 
-# # Button to save simulation data
-# html.Div(
-#     [
-#         dbc.Button(
-#             "Save data",
-#             id="button_savedata",
-#             className="me-2",
-#             n_clicks=0,
-#             style=dict(fontSize=14),
-#         ),
-#         dcc.Download(id="download_simulation"),
-#     ],
-#     style={
-#         "width": "100%",
-#         "fontSize": 12,
-#         "padding-left": "85%",
-#         "padding-right": "2%",
-#         "padding-top": "0%",
-#         "vertical-align": "middle",
-#         "display": "inline-block",
-#     },
-# ),
-
-# ),
-
 
 app.layout = html.Div([navbar, body_layout])
 
@@ -527,15 +526,16 @@ def sync_slider_box(box_value, slider_value):
     return box_value_out, slider_value_out
 
 
-for par in label_to_par.keys():
+for par in list_params_cond:
+    par_id = par.replace(".", "_")
     app.callback(
         [
-            Output("{}_box".format(par), "value"),
-            Output("{}_slider".format(par), "value"),
+            Output("{}_box".format(par_id), "value"),
+            Output("{}_slider".format(par_id), "value"),
         ],
         [
-            Input("{}_box".format(par), "value"),
-            Input("{}_slider".format(par), "value"),
+            Input("{}_box".format(par_id), "value"),
+            Input("{}_slider".format(par_id), "value"),
         ],
     )(sync_slider_box)
 
@@ -552,21 +552,36 @@ def func(n_clicks, stored_data):
     return dcc.send_data_frame(df.to_csv, "simulation_data.csv")
 
 
-### Callback function for model simulation and update of figure
+### Callback function on RUN button click - run simulation and make figure
+
+# Output includes (i) all figures, (ii) loading sign (iii) simulation data for download
+output = (
+    [Output("fig_{}".format(var), "figure") for var in list_vars]
+    + [Output("loading-output", "children")]
+    + [Output("simulation_data", "data")]
+)
+
+# all parameter values contained in sliders + boxes
+states = dict(
+    bcl=State("bcl", "value"),
+    total_beats=State("total_beats", "value"),
+    beats_keep=State("beats_keep", "value"),
+    cell_type=State("cell_type", "value"),
+    params_cond={
+        par: State("{}_box".format(par.replace(".", "_")), "value")
+        for par in list_params_cond
+    },
+    params_extracell={
+        par: State("{}_box".format(par.replace(".", "_")), "value")
+        for par in list_params_extracell
+    },
+)
+
+
 @app.callback(
-    [Output("fig_{}".format(var), "figure") for var in list_vars]  # all figure outputs
-    + [Output("loading-output", "children")]  # loading output
-    + [Output("simulation_data", "data")],  # storage of simulation data
-    [Input("run_button", "n_clicks")],
-    [
-        State("bcl", "value"),
-        State("total_beats", "value"),
-        State("beats_keep", "value"),
-        State("cell_type", "value"),
-    ]
-    + [
-        State("{}_box".format(par), "value") for par in label_to_par.keys()
-    ],  # all parameter multipliers
+    output=output,
+    inputs=dict(n_clicks=[Input("run_button", "n_clicks")]),  # run button click
+    state=states,
 )
 def update_fig(
     n_clicks,
@@ -574,12 +589,19 @@ def update_fig(
     total_beats,
     beats_keep,
     cell_type,
-    *par_multipliers,
+    params_cond,
+    params_extracell,
 ):
     # Updated parameter values
     params = {}
-    for idx, label in enumerate(label_to_par.keys()):
-        params[label_to_par[label]] = params_default[label] * par_multipliers[idx]
+
+    # Multipliers
+    for par in list_params_cond:
+        params[par] = params_default[par] * params_cond[par]
+
+    # Extracellular
+    for par in list_params_extracell:
+        params[par] = params_extracell[par]
 
     cell_type_dict = {"endo": 0, "epi": 1, "mid": 2}
 
@@ -601,6 +623,7 @@ def update_fig(
         fig = funs.make_simulation_fig(df_sim, var)
         list_figs.append(fig)
 
+    # List of outputs [figs, loading, data]
     return list_figs + [""] + [stored_data]
 
 
