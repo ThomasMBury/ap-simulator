@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Tue Jan 26 15:26:03 2021
+Created on 27 Feb, 2024
 
 Dash app to run simulation of Torod model in myokit
+Updates:
+    - dropdown box to select sliders that appear
 
 @author: tbury
 """
@@ -103,8 +105,6 @@ label_to_par_extra = dict(
 # Load in model from mmt file
 filepath_mmt = fileroot + "/mmt_files/torord-2019.mmt"
 m = myokit.load_model(filepath_mmt)
-## Validate model (check mmt was parsed correctly)
-# m.validate()
 
 # Create simulation object with model
 s = myokit.Simulation(m)
@@ -145,13 +145,25 @@ fig_tabs = dcc.Tabs(list_tabs)
 # --------------
 
 
-def make_slider(label, id_stem, default_value, slider_range):
+def make_slider(label, id_prefix, default_value, slider_range):
+    """Make a connected slider and input box for a parameter in the model
+
+    Args:
+        label: label shown on slider
+        id_prefix: prefix for reference ID used in callbacks
+        default_value: default value
+        slider_range: slider range
+
+    Returns:
+        Dash slider object in a Div
+    """
+
     slider = html.Div(
         [
             # Title for slider
             html.Label(
                 label,
-                id="{}_slider_text".format(id_stem),
+                id="{}_slider_text".format(id_prefix),
                 style={"fontSize": 14},
             ),
             dbc.Row(
@@ -160,11 +172,11 @@ def make_slider(label, id_stem, default_value, slider_range):
                         [
                             # Slider
                             dcc.Slider(
-                                id="{}_slider".format(id_stem),
+                                id="{}_slider".format(id_prefix),
                                 min=slider_range[0],
                                 max=slider_range[1],
                                 # step=10,
-                                # marks=slider_marks,
+                                marks={i: "{}".format(i) for i in range(4)},
                                 value=default_value,
                             ),
                         ],
@@ -174,7 +186,7 @@ def make_slider(label, id_stem, default_value, slider_range):
                         [
                             # Input box
                             dcc.Input(
-                                id="{}_box".format(id_stem),
+                                id="{}_box".format(id_prefix),
                                 type="number",
                                 min=slider_range[0],
                                 max=slider_range[1],
@@ -506,7 +518,7 @@ def sync_input(bcl, bpm):
     return bcl, bpm
 
 
-### Callback functions to sync sliders with input box
+### Callback functions to sync sliders with respective input boxes
 def sync_slider_box(box_value, slider_value):
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
     box_value_out = box_value if trigger_id[-3:] == "box" else slider_value
@@ -552,7 +564,9 @@ def func(n_clicks, stored_data):
         State("beats_keep", "value"),
         State("cell_type", "value"),
     ]
-    + [State("{}_box".format(par), "value") for par in label_to_par.keys()],
+    + [
+        State("{}_box".format(par), "value") for par in label_to_par.keys()
+    ],  # all parameter multipliers
 )
 def update_fig(
     n_clicks,
@@ -560,23 +574,12 @@ def update_fig(
     total_beats,
     beats_keep,
     cell_type,
-    ina_mult,
-    ito_mult,
-    ical_mult,
-    ikr_mult,
-    iks_mult,
-    inaca_mult,
-    tjca_mult,
+    *par_multipliers,
 ):
-    # Updated model parameter values
+    # Updated parameter values
     params = {}
-    params[label_to_par["ina"]] = params_default["ina"] * ina_mult
-    params[label_to_par["ical"]] = params_default["ical"] * ical_mult
-    params[label_to_par["ikr"]] = params_default["ikr"] * ikr_mult
-    params[label_to_par["iks"]] = params_default["iks"] * iks_mult
-    params[label_to_par["inaca"]] = params_default["inaca"] * inaca_mult
-    params[label_to_par["ito"]] = params_default["ito"] * ito_mult
-    params[label_to_par["tjca"]] = params_default["tjca"] * tjca_mult
+    for idx, label in enumerate(label_to_par.keys()):
+        params[label_to_par[label]] = params_default[label] * par_multipliers[idx]
 
     cell_type_dict = {"endo": 0, "epi": 1, "mid": 2}
 

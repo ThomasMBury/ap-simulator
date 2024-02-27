@@ -37,9 +37,12 @@ def sim_model(s, params={}, bcl=1000, total_beats=100, beats_keep=4, cell_type=0
         specified are set to default.
     bcl : float
         basic cycle length
-    num_beats : int
-        number of beats to simulate (after pre-pacing)
-
+    total_beats : int
+        total number of beats to simulate
+    beats_kepp: int
+        number of beats to display in figure (from the end of the simulation)
+    cell_type: int
+        cell type (0: endo;  1: epi;  2: mid)
 
     Returns
     -------
@@ -48,13 +51,12 @@ def sim_model(s, params={}, bcl=1000, total_beats=100, beats_keep=4, cell_type=0
 
     """
 
-    # Set cell type (0: endo;  1: epi;  2: mid)
     params["environment.celltype"] = cell_type
 
-    # Extracellular cell concentrations used to simulate EADs (Tomek et al.)
-    params["extracellular.nao"] = 137
-    params["extracellular.clo"] = 148
-    params["extracellular.cao"] = 2
+    # # Extracellular cell concentrations used to simulate EADs (Tomek et al.)
+    # params["extracellular.nao"] = 137
+    # params["extracellular.clo"] = 148
+    # params["extracellular.cao"] = 2
 
     # Assign parameters to simulation object
     for key in params.keys():
