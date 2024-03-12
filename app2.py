@@ -134,9 +134,11 @@ s = myokit.Simulation(m)
 #     label: m.get(label_to_par[label]).value() for label in label_to_par.keys()
 # }
 
+# Preset parameter configurations - default values
 params_default = {
     par: m.get(par).value() for par in list_params_cond + list_params_extracell
 }
+
 
 # Default protocol values
 bcl_def = 1000
@@ -213,7 +215,7 @@ def make_slider(label="ICaL", id_prefix="ical", default_value=1, slider_range=[0
                                 type="number",
                                 min=slider_range[0],
                                 max=slider_range[1],
-                                step=0.01,
+                                step=0.001,
                                 value=default_value,
                                 style=dict(width=80, display="inline-block"),
                             ),
@@ -319,7 +321,6 @@ body_layout = dbc.Container(
                         ),
                         dbc.Row(
                             [
-                                # Model type
                                 dbc.Col(
                                     [
                                         html.Label(
@@ -329,6 +330,19 @@ body_layout = dbc.Container(
                                             ["endo", "epi", "mid"],
                                             "endo",
                                             id="cell_type",
+                                            clearable=False,
+                                            style=dict(fontSize=14),
+                                        ),
+                                    ],
+                                    width=4,
+                                ),
+                                dbc.Col(
+                                    [
+                                        html.Label("Preset", style=dict(fontSize=14)),
+                                        dcc.Dropdown(
+                                            ["default", "EAD"],
+                                            "default",
+                                            id="dropdown_presets",
                                             clearable=False,
                                             style=dict(fontSize=14),
                                         ),
@@ -365,7 +379,9 @@ body_layout = dbc.Container(
                         ),
                         html.Div(
                             [
-                                html.Label("Cao =", style=dict(fontSize=14)),
+                                html.Label(
+                                    "Clo =", style=dict(fontSize=14, marginRight=5)
+                                ),
                                 dcc.Input(
                                     id="extracellular_clo_box",
                                     value=params_default["extracellular.clo"],
@@ -380,7 +396,9 @@ body_layout = dbc.Container(
                         ),
                         html.Div(
                             [
-                                html.Label("Ko =", style=dict(fontSize=14)),
+                                html.Label(
+                                    "Ko =", style=dict(fontSize=14, marginRight=10)
+                                ),
                                 dcc.Input(
                                     id="extracellular_ko_box",
                                     value=params_default["extracellular.ko"],
@@ -513,6 +531,7 @@ app.layout = html.Div([navbar, body_layout])
         Input("bcl", "value"),
         Input("bpm", "value"),
     ],
+    prevent_initial_call=True,
 )
 def sync_input(bcl, bpm):
     input_id = ctx.triggered[0]["prop_id"].split(".")[0]
@@ -523,7 +542,11 @@ def sync_input(bcl, bpm):
     return bcl, bpm
 
 
-### Callback functions to sync sliders with respective input boxes
+# --------------
+# Callback functions to sync sliders with respective input boxes
+# ---------------
+
+
 def sync_slider_box(box_value, slider_value):
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
     box_value_out = box_value if trigger_id[-3:] == "box" else slider_value
@@ -536,17 +559,64 @@ for par in list_params_cond:
     par_id = par.replace(".", "_")
     app.callback(
         [
-            Output("{}_box".format(par_id), "value"),
-            Output("{}_slider".format(par_id), "value"),
+            Output("{}_box".format(par_id), "value", allow_duplicate=True),
+            Output("{}_slider".format(par_id), "value", allow_duplicate=True),
         ],
         [
             Input("{}_box".format(par_id), "value"),
             Input("{}_slider".format(par_id), "value"),
         ],
+        prevent_initial_call=True,
     )(sync_slider_box)
 
+# -------------
+# Callback to update sliders and ECM boxes with a change in preset param config
+# --------------
+# Default slider and box parameters
+pars_slider_box_default = params_default.copy()
+# Note using multipliers
+for key in list_params_cond:
+    pars_slider_box_default[key] = 1
 
-### Callback to save simulation and parameter data
+# EAD slider and box parameters
+pars_slider_box_ead = pars_slider_box_default.copy()
+pars_slider_box_ead["IKr.GKr_b"] = 0.015
+pars_slider_box_ead["ICaL.PCa_b"] = 1.25
+pars_slider_box_ead["INaCa.Gncx_b"] = 1.5
+pars_slider_box_ead["extracellular.nao"] = 137
+pars_slider_box_ead["extracellular.clo"] = 148
+pars_slider_box_ead["extracellular.cao"] = 2
+
+# Output includes all sliders and ECM boxes
+outputs_callback_preset = [
+    Output("{}_slider".format(prefix).replace(".", "_"), "value", allow_duplicate=True)
+    for prefix in list_params_cond
+] + [
+    Output("{}_box".format(prefix).replace(".", "_"), "value", allow_duplicate=True)
+    for prefix in list_params_extracell
+]
+# Input is dropdown box that contains preset labels
+inputs_callback_presets = Input("dropdown_presets", "value")
+
+
+@app.callback(
+    outputs_callback_preset,
+    inputs_callback_presets,
+    prevent_initial_call=True,
+    allow_duplicate=True,
+)
+def udpate_sliders_and_boxes(preset):
+    if preset == "default":
+        return list(pars_slider_box_default.values())
+    elif preset == "EAD":
+        return list(pars_slider_box_ead.values())
+    else:
+        return 0
+
+
+# ---------
+# Callback to save simulation and parameter data
+# ---------
 @app.callback(
     [
         Output("download_simulation", "data"),
@@ -568,18 +638,22 @@ def func(n_clicks, simulation_data, parameter_data):
     return [out1, out2]
 
 
-### Callback function on RUN button click - run simulation and make figure
+# -----------
+# Callback function on RUN button click - run simulation and make figure
+# ------------
 
 # Output includes (i) all figures, (ii) loading sign (iii) simulation and parameter data for download
-output = (
+outputs_callback_run = (
     [Output("fig_{}".format(var), "figure") for var in list_vars]
     + [Output("loading-output", "children")]
     + [Output("simulation_data", "data")]
     + [Output("parameter_data", "data")]
 )
+# Input is click of run button
+inputs_callback_run = dict(n_clicks=[Input("run_button", "n_clicks")])
 
-# all parameter values contained in sliders + boxes
-states = dict(
+# State values are all parameters contained in sliders + boxes
+states_callback_run = dict(
     bcl=State("bcl", "value"),
     total_beats=State("total_beats", "value"),
     beats_keep=State("beats_keep", "value"),
@@ -596,9 +670,9 @@ states = dict(
 
 
 @app.callback(
-    output=output,
-    inputs=dict(n_clicks=[Input("run_button", "n_clicks")]),  # run button click
-    state=states,
+    output=outputs_callback_run,
+    inputs=inputs_callback_run,
+    state=states_callback_run,
 )
 def update_fig(
     n_clicks,
