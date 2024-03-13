@@ -24,9 +24,11 @@ import myokit as myokit
 cols = px.colors.qualitative.Plotly
 
 
-def sim_model(s, params={}, bcl=1000, total_beats=100, beats_keep=4, cell_type=0):
+def sim_model(
+    s, plot_vars, params={}, bcl=1000, total_beats=100, beats_keep=4, cell_type=0
+):
     """
-    Simulate Torord model of CM in endocardium.
+    Simulate Torord model
 
     Parameters
     ----------
@@ -51,12 +53,10 @@ def sim_model(s, params={}, bcl=1000, total_beats=100, beats_keep=4, cell_type=0
 
     """
 
-    params["environment.celltype"] = cell_type
+    # Get default state of model
+    default_state = s.default_state()
 
-    # # Extracellular cell concentrations used to simulate EADs (Tomek et al.)
-    # params["extracellular.nao"] = 137
-    # params["extracellular.clo"] = 148
-    # params["extracellular.cao"] = 2
+    params["environment.celltype"] = cell_type
 
     # Assign parameters to simulation object
     for key in params.keys():
@@ -75,27 +75,22 @@ def sim_model(s, params={}, bcl=1000, total_beats=100, beats_keep=4, cell_type=0
     print("Begin recorded simulation")
     d = s.run(bcl * beats_keep)
 
-    # Put desired data into dataframe
-    df = pd.DataFrame(
-        {
-            "time": np.array(d["environment.time"]),
-            "voltage": np.array(d["membrane.v"]),
-            "ina": np.array(d["INa.INa"]),
-            "inaca": np.array(d["INaCa.INaCa_i"]),
-            "ical": np.array(d["ICaL.ICaL"]),
-            "ikr": np.array(d["IKr.IKr"]),
-            "iks": np.array(d["IKs.IKs"]),
-        }
-    )
-    # Reset simulation
-    s.reset()
+    # Collect data specified in plot_vars
+    data_dict = {key: d[key] for key in plot_vars}
+    data_dict["time"] = d["environment.time"]
+    df = pd.DataFrame(data_dict)
+
+    # Reset simulation (don't use s.reset as this only goes to end of pre-pacing)
+    s.set_state(default_state)
+    s.set_time(0)
 
     return df
 
 
-def make_simulation_fig(df_sim, var_plot):
+def make_simulation_fig(df_sim, plot_var):
     """
     Make figure showing variable vs time
+    If plot_var is not in df_sim, output empty graph
 
     Parameters
     ----------
@@ -113,21 +108,22 @@ def make_simulation_fig(df_sim, var_plot):
 
     fig = go.Figure()
 
-    fig.add_trace(
-        go.Scatter(
-            x=df_sim["time"],
-            y=df_sim[var_plot],
-            showlegend=False,
-            mode="lines",
-            line={
-                "color": cols[0],
-                "width": line_width,
-            },
-        ),
-    )
+    if plot_var in df_sim.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=df_sim["time"],
+                y=df_sim[plot_var],
+                showlegend=False,
+                mode="lines",
+                line={
+                    "color": cols[0],
+                    "width": line_width,
+                },
+            ),
+        )
 
     fig.update_xaxes(title="Time (ms)")
-    fig.update_yaxes(title=var_plot)
+    fig.update_yaxes(title=plot_var)
 
     fig.update_layout(
         height=600,

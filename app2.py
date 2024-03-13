@@ -74,6 +74,7 @@ app = Dash(
     __name__,
     external_stylesheets=[dbc.themes.BOOTSTRAP],
     requests_pathname_prefix=requests_pathname_prefix,
+    suppress_callback_exceptions=True,
 )
 server = app.server
 
@@ -126,44 +127,58 @@ list_params_extracell = [
 filepath_mmt = fileroot + "/mmt_files/torord-2019.mmt"
 m = myokit.load_model(filepath_mmt)
 
+# Get names of all variables in model
+var_names = [var.qname() for var in list(m.variables(const=False))]
+# State variables to plot by default
+plot_vars_def = [
+    "membrane.v",
+    "INa.INa",
+    "INaCa.INaCa_i",
+    "ICaL.ICaL",
+    "IKr.IKr",
+    "IKs.IKs",
+]
+
 # Create simulation object with model
 s = myokit.Simulation(m)
-
-# Get default parameter values from mmt file
-# params_default = {
-#     label: m.get(label_to_par[label]).value() for label in label_to_par.keys()
-# }
 
 # Preset parameter configurations - default values
 params_default = {
     par: m.get(par).value() for par in list_params_cond + list_params_extracell
 }
 
-
 # Default protocol values
 bcl_def = 1000
 total_beats_def = 100
 beats_keep_def = 1
 
-# # Run default simulation
+# Run default simulation
 df_sim = funs.sim_model(
-    s, params={}, bcl=bcl_def, total_beats=total_beats_def, beats_keep=beats_keep_def
+    s,
+    plot_vars_def,
+    params={},
+    bcl=bcl_def,
+    total_beats=total_beats_def,
+    beats_keep=beats_keep_def,
 )
 
-# Make figures and put them into tabs
-list_tabs = []
-list_vars = [v for v in df_sim.columns if v != "time"]
+# Need to convert df to dict to store as json on app
+simulation_data = {"data-frame": df_sim.to_dict("records")}
 
-for var in list_vars:
-    fig = dcc.Graph(
-        figure=funs.make_simulation_fig(df_sim, var),
-        id="fig_{}".format(var),
-        style=dict(height=600),
-    )
-    tab = dcc.Tab(label=var, children=[fig])
-    list_tabs.append(tab)
+# Make dict contianing all parameter values to save
+parameter_data = params_default.copy()
+parameter_data["bcl"] = bcl_def
+parameter_data["total_beats"] = total_beats_def
+parameter_data["beats_keep"] = beats_keep_def
 
-fig_tabs = dcc.Tabs(list_tabs)
+
+# Make default figure
+fig = funs.make_simulation_fig(df_sim, "membrane.v")
+div_fig = html.Div(dcc.Graph(figure=fig))
+
+# Setup figure tabs
+list_tabs = [dcc.Tab(value=var, label=var) for var in plot_vars_def]
+tabs = dcc.Tabs(list_tabs, id="tabs", value="membrane.v")
 
 
 # ------------
@@ -431,20 +446,29 @@ body_layout = dbc.Container(
                 ),
                 dbc.Col(
                     [
-                        # Figure
-                        html.Div(
-                            fig_tabs,
-                            style={
-                                "width": "100%",
-                                # "height": "1000px",
-                                "fontSize": 12,
-                                "padding-left": "2%",
-                                "padding-right": "2%",
-                                "padding-top": "2%",
-                                "vertical-align": "middle",
-                                "display": "inline-block",
-                            },
+                        dcc.Markdown(
+                            """
+                            -----
+                            **Visual variables**:
+                            """
                         ),
+                        dcc.Dropdown(
+                            id="dropdown_plot_vars",
+                            options=var_names,
+                            value=plot_vars_def,
+                            multi=True,
+                            maxHeight=400,
+                            optionHeight=20,
+                            style=dict(fontSize=12),
+                        ),
+                        # Tabs
+                        html.Div(tabs, id="tabs_container_div"),
+                        # Figure
+                        html.Div(id="tabs_container_output_div", children=div_fig),
+                        # # Figure
+                        # div_tabs,
+                        # html.Div(div_tabs, id="div_tabs"),
+                        # Row for loading bar, run button and save button
                         dbc.Row(
                             [
                                 dbc.Col(
@@ -496,7 +520,10 @@ body_layout = dbc.Container(
                                             dcc.Download(id="download_simulation"),
                                             dcc.Download(id="download_parameters"),
                                             # Storage component for simulation and parameter data
-                                            dcc.Store(id="simulation_data"),
+                                            dcc.Store(
+                                                id="simulation_data",
+                                                data=simulation_data,
+                                            ),
                                             dcc.Store(id="parameter_data"),
                                         ],
                                         className="d-grid gap-2",
@@ -505,7 +532,8 @@ body_layout = dbc.Container(
                                 ),
                             ]
                         ),
-                    ]
+                    ],
+                    width=8,
                 ),
             ]
         )
@@ -516,12 +544,9 @@ body_layout = dbc.Container(
 app.layout = html.Div([navbar, body_layout])
 
 
-# ------------------
-# Callback functions
-# -------------------
-
-
-### Callback function to sync BCL and BPM boxes
+# -----------------
+# Callback function to sync BCL and BPM boxes
+# -----------------
 @app.callback(
     [
         Output("bcl", "value"),
@@ -572,6 +597,7 @@ for par in list_params_cond:
 # -------------
 # Callback to update sliders and ECM boxes with a change in preset param config
 # --------------
+
 # Default slider and box parameters
 pars_slider_box_default = params_default.copy()
 # Note using multipliers
@@ -615,6 +641,26 @@ def udpate_sliders_and_boxes(preset):
 
 
 # ---------
+# Callback to sync tabs with variables selected in dropdown box
+# ---------
+
+
+@callback(
+    Output("tabs_container_div", "children"), Input("dropdown_plot_vars", "value")
+)
+def display_tabs(plot_vars):
+    tabs = [dcc.Tab(value=var, label=var) for var in plot_vars]
+    children = (
+        dcc.Tabs(
+            id="tabs",
+            value="membrane.v",
+            children=tabs,
+        ),
+    )
+    return children
+
+
+# ---------
 # Callback to save simulation and parameter data
 # ---------
 @app.callback(
@@ -644,10 +690,12 @@ def func(n_clicks, simulation_data, parameter_data):
 
 # Output includes (i) all figures, (ii) loading sign (iii) simulation and parameter data for download
 outputs_callback_run = (
-    [Output("fig_{}".format(var), "figure") for var in list_vars]
-    + [Output("loading-output", "children")]
-    + [Output("simulation_data", "data")]
-    + [Output("parameter_data", "data")]
+    # [Output("fig_{}".format(var).replace(".", "_"), "figure") for var in plot_vars_def]
+    # [Output("div_tabs", "children")]
+    Output("tabs_container_output_div", "children"),
+    Output("loading-output", "children"),
+    Output("simulation_data", "data"),
+    Output("parameter_data", "data"),
 )
 # Input is click of run button
 inputs_callback_run = dict(n_clicks=[Input("run_button", "n_clicks")])
@@ -658,6 +706,8 @@ states_callback_run = dict(
     total_beats=State("total_beats", "value"),
     beats_keep=State("beats_keep", "value"),
     cell_type=State("cell_type", "value"),
+    plot_vars=State("dropdown_plot_vars", "value"),
+    current_plot_var=State("tabs", "value"),
     params_cond={
         par: State("{}_box".format(par.replace(".", "_")), "value")
         for par in list_params_cond
@@ -673,18 +723,23 @@ states_callback_run = dict(
     output=outputs_callback_run,
     inputs=inputs_callback_run,
     state=states_callback_run,
+    prevent_initial_call=True,
 )
-def update_fig(
+def run_sim_and_update_fig(
     n_clicks,
     bcl,
     total_beats,
     beats_keep,
     cell_type,
+    plot_vars,
+    current_plot_var,
     params_cond,
     params_extracell,
 ):
     # Updated parameter values
     params = {}
+
+    print(plot_vars)
 
     # Multipliers
     for par in list_params_cond:
@@ -705,6 +760,7 @@ def update_fig(
     # Run simulation
     df_sim = funs.sim_model(
         s,
+        plot_vars,
         params=params,
         bcl=bcl,
         total_beats=total_beats,
@@ -715,13 +771,26 @@ def update_fig(
     # Need to convert df to dict to store as json
     simulation_data = {"data-frame": df_sim.to_dict("records")}
 
-    list_figs = []
-    for var in list_vars:
-        fig = funs.make_simulation_fig(df_sim, var)
-        list_figs.append(fig)
+    fig = funs.make_simulation_fig(df_sim, current_plot_var)
+    div_fig = html.Div(dcc.Graph(figure=fig))
 
-    # List of outputs [figs, loading, data]
-    return list_figs + ["", simulation_data, parameter_data]
+    return [div_fig, "", simulation_data, parameter_data]
+
+
+# ---------
+# Callback to switch between tabs
+# ---------
+@callback(
+    Output("tabs_container_output_div", "children", allow_duplicate=True),
+    Input("tabs", "value"),
+    State("simulation_data", "data"),
+    prevent_initial_call=True,
+)
+def render_content(tab, simulation_data):
+    df_sim = pd.DataFrame(simulation_data["data-frame"])
+    fig = funs.make_simulation_fig(df_sim, tab)
+    div_fig = html.Div(dcc.Graph(figure=fig))
+    return div_fig
 
 
 if __name__ == "__main__":
