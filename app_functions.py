@@ -25,7 +25,12 @@ cols = px.colors.qualitative.Plotly
 
 
 def sim_model(
-    s, plot_vars, params={}, bcl=1000, total_beats=100, beats_keep=4, cell_type=0
+    s,
+    plot_vars,
+    params={},
+    bcl=1000,
+    total_beats=100,
+    beats_keep=4,
 ):
     """
     Simulate Torord model
@@ -43,8 +48,6 @@ def sim_model(
         total number of beats to simulate
     beats_kepp: int
         number of beats to display in figure (from the end of the simulation)
-    cell_type: int
-        cell type (0: endo;  1: epi;  2: mid)
 
     Returns
     -------
@@ -55,8 +58,6 @@ def sim_model(
 
     # Get default state of model
     default_state = s.default_state()
-
-    params["environment.celltype"] = cell_type
 
     # Assign parameters to simulation object
     for key in params.keys():

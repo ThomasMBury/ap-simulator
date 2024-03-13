@@ -4,8 +4,7 @@
 Created on 27 Feb, 2024
 
 Dash app to run simulation of Torod model in myokit
-Updates:
-    - dropdown box to select sliders that appear
+- S1S2 stimulation protocol
 
 @author: tbury
 """
@@ -21,13 +20,6 @@ import myokit as myokit
 
 import app_functions as funs
 
-
-# Potential new features
-# - button to save ALL variables (would require resimulation with immediate downlaod, don't want to store this data in browser as big file)
-# - make run button bigger
-
-# Inspired by this example
-# https://dash.gallery/dash-cytoscape-lda/?_gl=1*1n1w6iy*_ga*MTkwMzI4NzAyLjE2NjY4MDg0MDg.*_ga_6G7EE0JNSC*MTcwMDI2MTU3MS4xMDguMS4xNzAwMjYyNTY0LjYwLjAuMA..#
 
 # Determine if running app locally or on cloud
 fileroot_local = "/Users/tbury/Google Drive/research/postdoc_23/ap-simulator"
@@ -119,8 +111,6 @@ list_params_extracell = [
     "extracellular.ko",
 ]
 
-list_params_other = ["environment.celltype"]
-
 # Load in model from mmt file
 filepath_mmt = fileroot + "/mmt_files/torord-2019.mmt"
 m = myokit.load_model(filepath_mmt)
@@ -142,8 +132,7 @@ s = myokit.Simulation(m)
 
 # Preset parameter configurations - default values
 params_default = {
-    par: m.get(par).value()
-    for par in list_params_cond + list_params_extracell + list_params_other
+    par: m.get(par).value() for par in list_params_cond + list_params_extracell
 }
 
 # Default protocol values
@@ -448,7 +437,7 @@ body_layout = dbc.Container(
                         dcc.Markdown(
                             """
                             -----
-                            **Variables to visualise and save**:
+                            **Variables to visualize and save**:
                             """
                         ),
                         dcc.Dropdown(
@@ -524,7 +513,8 @@ body_layout = dbc.Container(
                                                 data=simulation_data,
                                             ),
                                             dcc.Store(
-                                                id="parameter_data", data=parameter_data
+                                                id="parameter_data",
+                                                data=parameter_data,
                                             ),
                                         ],
                                         className="d-grid gap-2",
@@ -550,11 +540,7 @@ app.layout = html.Div([navbar, body_layout])
 # -----------------
 @app.callback(
     [
-        Output(
-            "bcl",
-            "value",
-            allow_duplicate=True,
-        ),
+        Output("bcl", "value"),
         Output("bpm", "value"),
     ],
     [
@@ -605,36 +591,27 @@ for par in list_params_cond:
 
 # Default slider and box parameters
 pars_slider_box_default = params_default.copy()
-# Don't need cell type here
-cell_type = pars_slider_box_default.pop("environment.celltype")
 # Note using multipliers
 for key in list_params_cond:
     pars_slider_box_default[key] = 1
 
 # EAD slider and box parameters
 pars_slider_box_ead = pars_slider_box_default.copy()
-pars_slider_box_ead["IKr.GKr_b"] = 0.15
-pars_slider_box_ead["ICaL.PCa_b"] = 1
-pars_slider_box_ead["INaCa.Gncx_b"] = 1
+pars_slider_box_ead["IKr.GKr_b"] = 0.015
+pars_slider_box_ead["ICaL.PCa_b"] = 1.25
+pars_slider_box_ead["INaCa.Gncx_b"] = 1.5
 pars_slider_box_ead["extracellular.nao"] = 137
 pars_slider_box_ead["extracellular.clo"] = 148
 pars_slider_box_ead["extracellular.cao"] = 2
-bcl_ead = 4000
 
 # Output includes all sliders and ECM boxes
-outputs_callback_preset = (
-    [
-        Output(
-            "{}_slider".format(prefix).replace(".", "_"), "value", allow_duplicate=True
-        )
-        for prefix in list_params_cond
-    ]
-    + [
-        Output("{}_box".format(prefix).replace(".", "_"), "value", allow_duplicate=True)
-        for prefix in list_params_extracell
-    ]
-    + [Output("bcl", "value", allow_duplicate=True)]
-)
+outputs_callback_preset = [
+    Output("{}_slider".format(prefix).replace(".", "_"), "value", allow_duplicate=True)
+    for prefix in list_params_cond
+] + [
+    Output("{}_box".format(prefix).replace(".", "_"), "value", allow_duplicate=True)
+    for prefix in list_params_extracell
+]
 # Input is dropdown box that contains preset labels
 inputs_callback_presets = Input("dropdown_presets", "value")
 
@@ -647,9 +624,9 @@ inputs_callback_presets = Input("dropdown_presets", "value")
 )
 def udpate_sliders_and_boxes(preset):
     if preset == "default":
-        return list(pars_slider_box_default.values()) + [bcl_def]
+        return list(pars_slider_box_default.values())
     elif preset == "EAD":
-        return list(pars_slider_box_ead.values()) + [bcl_ead]
+        return list(pars_slider_box_ead.values())
     else:
         return 0
 
@@ -763,15 +740,13 @@ def run_sim_and_update_fig(
     for par in list_params_extracell:
         params[par] = params_extracell[par]
 
-    # Cell type
-    cell_type_dict = {"endo": 0, "epi": 1, "mid": 2}
-    params["environment.celltype"] = cell_type_dict[cell_type]
-
     # Make dict contianing all parameter values to save
     parameter_data = params.copy()
     parameter_data["bcl"] = bcl
     parameter_data["total_beats"] = total_beats
     parameter_data["beats_keep"] = beats_keep
+
+    cell_type_dict = {"endo": 0, "epi": 1, "mid": 2}
 
     # Run simulation
     df_sim = funs.sim_model(
@@ -781,6 +756,7 @@ def run_sim_and_update_fig(
         bcl=bcl,
         total_beats=total_beats,
         beats_keep=beats_keep,
+        cell_type=cell_type_dict[cell_type],
     )
 
     # Need to convert df to dict to store as json
