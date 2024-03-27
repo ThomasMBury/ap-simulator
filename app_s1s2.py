@@ -97,10 +97,8 @@ m = myokit.load_model(filepath_mmt)
 # Get names of all variables in model
 var_names = [var.qname() for var in list(m.variables(const=False))]
 # State variables to plot by default
-plot_vars_def = [
-    "membrane.v",
-    "intracellular_ions.cai",
-]
+plot_vars = ["membrane.v", "intracellular_ions.cai"]
+plot_var_def = "membrane.v"
 
 # Create simulation object with model
 s = myokit.Simulation(m)
@@ -116,8 +114,8 @@ s1_interval_def = 1000
 s1_nbeats_def = 10
 s2_intervals_def = "300:500:20, 500:1000:50"
 
-# Run default S1S2 simulatio
-df_restitution = funs.sim_s1s2_restitution(
+# Run default S1S2 simulation
+df_ts, df_restitution = funs.sim_s1s2_restitution(
     s,
     params={},
     s1_interval=s1_interval_def,
@@ -134,14 +132,14 @@ parameter_data["s1_interval"] = s1_interval_def
 parameter_data["s1_nbeats"] = s1_nbeats_def
 parameter_data["s2_intervals"] = s2_intervals_def
 
-
-# Make default figure
-fig = funs.make_restitution_fig(df_restitution, "membrane.v")
-div_fig = html.Div(dcc.Graph(figure=fig))
+# Make default figs
+fig_ts = funs.make_s1s2_fig(df_ts, plot_var_def)
+fig_restitution = funs.make_restitution_fig(df_restitution, plot_var_def)
+div_fig = html.Div([dcc.Graph(figure=fig_ts), dcc.Graph(figure=fig_restitution)])
 
 # Setup figure tabs
-list_tabs = [dcc.Tab(value=var, label=var) for var in plot_vars_def]
-tabs = dcc.Tabs(list_tabs, id="tabs", value="membrane.v")
+list_tabs = [dcc.Tab(value=var, label=var) for var in plot_vars]
+tabs = dcc.Tabs(list_tabs, id="tabs", value=plot_var_def)
 
 
 # ------------

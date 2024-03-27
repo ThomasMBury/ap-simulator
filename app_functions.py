@@ -179,7 +179,7 @@ def sim_s1s2_restitution(
     s.set_protocol(p)
     s.pre(s1_nbeats * s1_interval)
 
-    # list_df = []
+    list_df = []
     list_di_vals = []
     list_apd_vals = []
     for s2_interval in list_s2_intervals:
@@ -196,13 +196,14 @@ def sim_s1s2_restitution(
         # Pacing simulation
         d = s.run(2 * s1_interval)
 
-        # # Collect data
-        # data_dict = {}
-        # data_dict["membrane.v"] = d["membrane.v"]
-        # data_dict["time"] = d["environment.time"]
-        # df = pd.DataFrame(data_dict)
-        # df["s2_interval"] = s2_interval
-        # list_df.append(df)
+        # Collect data
+        data_dict = {}
+        data_dict["membrane.v"] = d["membrane.v"]
+        data_dict["time"] = d["environment.time"]
+        data_dict["intracellular_ions.cai"] = d["intracellular_ions.cai"]
+        df = pd.DataFrame(data_dict)
+        df["s2_interval"] = s2_interval
+        list_df.append(df)
 
         # Compute DI and APD from S2
         voltage_vals = d["membrane.v"]
@@ -232,13 +233,13 @@ def sim_s1s2_restitution(
         {"s2_interval": list_s2_intervals, "di": list_di_vals, "apd": list_apd_vals}
     )
 
-    # df_full = pd.concat(list_df)
+    df_ts = pd.concat(list_df)
 
     # Reset simulation completely (including prepacing)
     s.set_state(default_state)
     s.set_time(0)
 
-    return df_restitution
+    return df_ts, df_restitution
 
 
 def find_crossings(arr, value):
@@ -249,6 +250,24 @@ def find_crossings(arr, value):
         ):
             crossings.append(i)
     return crossings
+
+
+def make_s1s2_fig(df_ts, plot_var):
+    line_width = 1
+
+    fig = px.line(df_ts, x="time", y=plot_var, color="s2_interval")
+
+    fig.update_xaxes(title="DI")
+    fig.update_yaxes(title="APD")
+
+    fig.update_traces(line={"width": line_width})
+
+    fig.update_layout(
+        height=400,
+        margin={"l": 20, "r": 20, "t": 30, "b": 20},
+    )
+
+    return fig
 
 
 def make_restitution_fig(df_restitution, plot_var):
@@ -273,7 +292,7 @@ def make_restitution_fig(df_restitution, plot_var):
     fig.update_yaxes(title="APD")
 
     fig.update_layout(
-        height=600,
+        height=400,
         margin={"l": 20, "r": 20, "t": 30, "b": 20},
     )
 
