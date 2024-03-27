@@ -134,6 +134,192 @@ def make_simulation_fig(df_sim, plot_var):
     return fig
 
 
+def sim_s1s2_restitution(
+    s,
+    params={},
+    s1_interval=1000,
+    s1_nbeats=10,
+    s2_intervals="300:500:20, 500:1000:50",
+):
+    """
+    Simulate Torord model with prepacing and then S1-S2 stimulation protocol
+
+    Parameters
+    ----------
+
+    s : simulation class (myokit.Simulation)
+    params : dict
+        Dictionary of user-defined model parameter values. Those that are not
+        specified are set to default.
+    s1_interval : int
+    s1_nbeats : int
+        number of s1 beats (prepacing)
+    s2_intervals: str
+        String input by the user that provides s2 values
+
+    Returns
+    -------
+    df : pd.DataFrame
+        Dataframe of data for restitution plots
+
+    """
+
+    # Unpack S2 values
+    list_s2_intervals = s2_input_to_list(s2_intervals)
+
+    # Get default state of model
+    default_state = s.default_state()
+
+    # Assign parameters to simulation object
+    for key in params.keys():
+        s.set_constant(key, params[key])
+
+    # Pre-pacing with S1 interval (only needs to be done once)
+    p = myokit.pacing.blocktrain(s1_interval, duration=0.5, offset=0)
+    s.set_protocol(p)
+    s.pre(s1_nbeats * s1_interval)
+
+    # list_df = []
+    list_di_vals = []
+    list_apd_vals = []
+    for s2_interval in list_s2_intervals:
+        # Set pacing protocol
+        p = myokit.Protocol()
+        # Single S1 stimulus
+        p.schedule(level=1.0, start=0, duration=0.5)
+        # Single S2 stimulus
+        p.schedule(level=1.0, start=s2_interval, duration=0.5)
+
+        # Update protoocl
+        s.set_protocol(p)
+
+        # Pacing simulation
+        d = s.run(2 * s1_interval)
+
+        # # Collect data
+        # data_dict = {}
+        # data_dict["membrane.v"] = d["membrane.v"]
+        # data_dict["time"] = d["environment.time"]
+        # df = pd.DataFrame(data_dict)
+        # df["s2_interval"] = s2_interval
+        # list_df.append(df)
+
+        # Compute DI and APD from S2
+        voltage_vals = d["membrane.v"]
+        time_vals = d["environment.time"]
+        thresh = -80  # mV
+        crossings_zero_voltage = find_crossings(voltage_vals, 0)
+        crossings_thresh = find_crossings(voltage_vals, thresh)
+
+        # Must be 4 crossings at zero voltage to determine DI and APD
+        if (len(crossings_zero_voltage) == 4) & (len(crossings_thresh) == 4):
+            di_start = crossings_thresh[1]
+            di_end = crossings_thresh[2]
+            ap_end = crossings_thresh[3]
+            di = time_vals[di_end] - time_vals[di_start]
+            apd = time_vals[ap_end] - time_vals[di_end]
+        else:
+            di = np.nan
+            apd = np.nan
+
+        list_di_vals.append(di)
+        list_apd_vals.append(apd)
+
+        # Reset simulation to pre-paced state
+        s.reset()
+
+    df_restitution = pd.DataFrame(
+        {"s2_interval": list_s2_intervals, "di": list_di_vals, "apd": list_apd_vals}
+    )
+
+    # df_full = pd.concat(list_df)
+
+    # Reset simulation completely (including prepacing)
+    s.set_state(default_state)
+    s.set_time(0)
+
+    return df_restitution
+
+
+def find_crossings(arr, value):
+    crossings = []
+    for i in range(len(arr) - 1):
+        if (arr[i] < value and arr[i + 1] >= value) or (
+            arr[i] > value and arr[i + 1] <= value
+        ):
+            crossings.append(i)
+    return crossings
+
+
+def make_restitution_fig(df_restitution, plot_var):
+    line_width = 1
+    fig = go.Figure()
+
+    if plot_var == "membrane.v":
+        fig.add_trace(
+            go.Scatter(
+                x=df_restitution["di"],
+                y=df_restitution["apd"],
+                showlegend=False,
+                mode="lines+markers",
+                line={
+                    "color": cols[0],
+                    "width": line_width,
+                },
+            ),
+        )
+
+    fig.update_xaxes(title="DI")
+    fig.update_yaxes(title="APD")
+
+    fig.update_layout(
+        height=600,
+        margin={"l": 20, "r": 20, "t": 30, "b": 20},
+    )
+
+    return fig
+
+
+def s2_input_to_list(s2_intervals):
+    """
+    Convert user input for s2 values to list of integers
+
+    Args:
+        s2_intervals: str
+            String input by the user.
+            Can be a comma seperated list of integers
+            or of the form min:max:inc
+    Returns
+    -------
+    list(int)
+        List of s2 intervals
+    """
+
+    try:
+        # Remove any whitepsace
+        s2_intervals = s2_intervals.replace(" ", "")
+
+        # Separate arguments
+        list_entry = s2_intervals.split(",")
+
+        list_s2_intervals = []
+        for entry in list_entry:
+            if entry.isnumeric():
+                list_s2_intervals.append(int(entry))
+
+            else:
+                # Unpack range of values
+                low, high, inc = [int(s) for s in entry.split(":")]
+                for s2 in np.arange(low, high, inc):
+                    list_s2_intervals.append(s2)
+
+    except:
+        print("invalid input")
+        return []
+
+    return list_s2_intervals
+
+
 # Test functions
 if __name__ == "__main__":
     x = 3

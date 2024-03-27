@@ -67,29 +67,6 @@ app = Dash(
 server = app.server
 
 
-# # Dictionary to map paramter label to parameter stored in mmt file
-# label_to_par = dict(
-#     INa="INa.GNa",  # membrane_fast_sodium_current_conductance
-#     INaL="INaL.GNaL_b",  # membrane_persistent_sodium_current_conductance
-#     ICaL="ICaL.PCa_b",  # membrane_L_type_calcium_current_conductance
-#     Ito="Ito.Gto_b",  # membrane_transient_outward_current_conductance
-#     INaCa="INaCa.Gncx_b",  # membrane_sodium_calcium_exchanger_current_conductance
-#     INaK="INaK.Pnak_b",  # membrane_sodium_potassium_pump_current_permeability
-#     IKr="IKr.GKr_b",  # membrane_rapid_delayed_rectifier_potassium_current_conductance
-#     IKs="IKs.GKs_b",  # membrane_slow_delayed_rectifier_potassium_current_conductance
-#     IK1="IK1.GK1_b",  # membrane_inward_rectifier_potassium_current_conductance
-#     Jrel="ryr.Jrel_b",  # SR_release_current_max
-#     Jup="SERCA.Jup_b",  # SR_uptake_current_max
-# )
-
-# # Map for parameters of extracellular matrix
-# label_to_par_extra = dict(
-#     Cao="extracellular.cao",  # extracellular_calcium_concentration
-#     Clo="extracellular.clo",
-#     Nao="extracellular.nao",  # extracellular_sodium_concentration
-#     Ko="extracellular.ko",  # extracellular_potassium_concentration
-# )
-
 list_params_cond = [
     "INa.GNa",
     "INaL.GNaL_b",
@@ -111,6 +88,8 @@ list_params_extracell = [
     "extracellular.ko",
 ]
 
+list_params_other = ["environment.celltype"]
+
 # Load in model from mmt file
 filepath_mmt = fileroot + "/mmt_files/torord-2019.mmt"
 m = myokit.load_model(filepath_mmt)
@@ -120,11 +99,7 @@ var_names = [var.qname() for var in list(m.variables(const=False))]
 # State variables to plot by default
 plot_vars_def = [
     "membrane.v",
-    "INa.INa",
-    "INaCa.INaCa_i",
-    "ICaL.ICaL",
-    "IKr.IKr",
-    "IKs.IKs",
+    "intracellular_ions.cai",
 ]
 
 # Create simulation object with model
@@ -132,36 +107,36 @@ s = myokit.Simulation(m)
 
 # Preset parameter configurations - default values
 params_default = {
-    par: m.get(par).value() for par in list_params_cond + list_params_extracell
+    par: m.get(par).value()
+    for par in list_params_cond + list_params_extracell + list_params_other
 }
 
 # Default protocol values
-bcl_def = 1000
-total_beats_def = 100
-beats_keep_def = 1
+s1_interval_def = 1000
+s1_nbeats_def = 10
+s2_intervals_def = "300:500:20, 500:1000:50"
 
-# Run default simulation
-df_sim = funs.sim_model(
+# Run default S1S2 simulatio
+df_restitution = funs.sim_s1s2_restitution(
     s,
-    plot_vars_def,
     params={},
-    bcl=bcl_def,
-    total_beats=total_beats_def,
-    beats_keep=beats_keep_def,
+    s1_interval=s1_interval_def,
+    s1_nbeats=s1_nbeats_def,
+    s2_intervals=s2_intervals_def,
 )
 
 # Need to convert df to dict to store as json on app
-simulation_data = {"data-frame": df_sim.to_dict("records")}
+simulation_data = {"data-frame": df_restitution.to_dict("records")}
 
 # Make dict contianing all parameter values to save
 parameter_data = params_default.copy()
-parameter_data["bcl"] = bcl_def
-parameter_data["total_beats"] = total_beats_def
-parameter_data["beats_keep"] = beats_keep_def
+parameter_data["s1_interval"] = s1_interval_def
+parameter_data["s1_nbeats"] = s1_nbeats_def
+parameter_data["s2_intervals"] = s2_intervals_def
 
 
 # Make default figure
-fig = funs.make_simulation_fig(df_sim, "membrane.v")
+fig = funs.make_restitution_fig(df_restitution, "membrane.v")
 div_fig = html.Div(dcc.Graph(figure=fig))
 
 # Setup figure tabs
@@ -257,14 +232,14 @@ body_layout = dbc.Container(
                         html.Div(
                             [
                                 html.Label(
-                                    "Basic cycle length =", style=dict(fontSize=14)
+                                    "S1 cycle length =", style=dict(fontSize=14)
                                 ),
                                 dcc.Input(
-                                    id="bcl",
-                                    value=bcl_def,
+                                    id="s1_interval",
+                                    value=s1_interval_def,
                                     type="number",
                                     style=dict(width=80, display="inline-block"),
-                                    placeholder=bcl_def,
+                                    placeholder=s1_interval_def,
                                     min=1,
                                     max=10000,
                                 ),
@@ -287,11 +262,11 @@ body_layout = dbc.Container(
                                     style=dict(fontSize=14, display="inline-block"),
                                 ),
                                 dcc.Input(
-                                    id="total_beats",
-                                    value=total_beats_def,
+                                    id="s1_nbeats",
+                                    value=s1_nbeats_def,
                                     type="number",
                                     style=dict(width=80, display="inline-block"),
-                                    placeholder=total_beats_def,
+                                    placeholder=s1_nbeats_def,
                                     min=1,
                                     max=200,
                                     step=1,
@@ -302,18 +277,14 @@ body_layout = dbc.Container(
                         # Input box for show last
                         html.Div(
                             [
-                                html.Label("Show last ", style=dict(fontSize=14)),
+                                html.Label("S2 intervals = ", style=dict(fontSize=14)),
                                 dcc.Input(
-                                    id="beats_keep",
-                                    value=beats_keep_def,
-                                    type="number",
-                                    style=dict(width=80),
-                                    placeholder=beats_keep_def,
-                                    min=1,
-                                    max=200,
-                                    step=1,
+                                    id="s2_intervals",
+                                    value=s2_intervals_def,
+                                    type="text",
+                                    style=dict(width=300),
+                                    placeholder=s2_intervals_def,
                                 ),
-                                html.Label(" beats ", style=dict(fontSize=14)),
                             ]
                         ),
                         dcc.Markdown(
@@ -437,17 +408,8 @@ body_layout = dbc.Container(
                         dcc.Markdown(
                             """
                             -----
-                            **Variables to visualize and save**:
+                            **Plot variables**:
                             """
-                        ),
-                        dcc.Dropdown(
-                            id="dropdown_plot_vars",
-                            options=var_names,
-                            value=plot_vars_def,
-                            multi=True,
-                            maxHeight=400,
-                            optionHeight=20,
-                            style=dict(fontSize=12),
                         ),
                         # Tabs
                         html.Div(tabs, id="tabs_container_div"),
@@ -513,8 +475,7 @@ body_layout = dbc.Container(
                                                 data=simulation_data,
                                             ),
                                             dcc.Store(
-                                                id="parameter_data",
-                                                data=parameter_data,
+                                                id="parameter_data", data=parameter_data
                                             ),
                                         ],
                                         className="d-grid gap-2",
@@ -540,7 +501,11 @@ app.layout = html.Div([navbar, body_layout])
 # -----------------
 @app.callback(
     [
-        Output("bcl", "value"),
+        Output(
+            "bcl",
+            "value",
+            allow_duplicate=True,
+        ),
         Output("bpm", "value"),
     ],
     [
@@ -591,27 +556,36 @@ for par in list_params_cond:
 
 # Default slider and box parameters
 pars_slider_box_default = params_default.copy()
+# Don't need cell type here
+cell_type = pars_slider_box_default.pop("environment.celltype")
 # Note using multipliers
 for key in list_params_cond:
     pars_slider_box_default[key] = 1
 
 # EAD slider and box parameters
 pars_slider_box_ead = pars_slider_box_default.copy()
-pars_slider_box_ead["IKr.GKr_b"] = 0.015
-pars_slider_box_ead["ICaL.PCa_b"] = 1.25
-pars_slider_box_ead["INaCa.Gncx_b"] = 1.5
+pars_slider_box_ead["IKr.GKr_b"] = 0.15
+pars_slider_box_ead["ICaL.PCa_b"] = 1
+pars_slider_box_ead["INaCa.Gncx_b"] = 1
 pars_slider_box_ead["extracellular.nao"] = 137
 pars_slider_box_ead["extracellular.clo"] = 148
 pars_slider_box_ead["extracellular.cao"] = 2
+bcl_ead = 4000
 
 # Output includes all sliders and ECM boxes
-outputs_callback_preset = [
-    Output("{}_slider".format(prefix).replace(".", "_"), "value", allow_duplicate=True)
-    for prefix in list_params_cond
-] + [
-    Output("{}_box".format(prefix).replace(".", "_"), "value", allow_duplicate=True)
-    for prefix in list_params_extracell
-]
+outputs_callback_preset = (
+    [
+        Output(
+            "{}_slider".format(prefix).replace(".", "_"), "value", allow_duplicate=True
+        )
+        for prefix in list_params_cond
+    ]
+    + [
+        Output("{}_box".format(prefix).replace(".", "_"), "value", allow_duplicate=True)
+        for prefix in list_params_extracell
+    ]
+    + [Output("bcl", "value", allow_duplicate=True)]
+)
 # Input is dropdown box that contains preset labels
 inputs_callback_presets = Input("dropdown_presets", "value")
 
@@ -624,9 +598,9 @@ inputs_callback_presets = Input("dropdown_presets", "value")
 )
 def udpate_sliders_and_boxes(preset):
     if preset == "default":
-        return list(pars_slider_box_default.values())
+        return list(pars_slider_box_default.values()) + [bcl_def]
     elif preset == "EAD":
-        return list(pars_slider_box_ead.values())
+        return list(pars_slider_box_ead.values()) + [bcl_ead]
     else:
         return 0
 
@@ -740,13 +714,15 @@ def run_sim_and_update_fig(
     for par in list_params_extracell:
         params[par] = params_extracell[par]
 
+    # Cell type
+    cell_type_dict = {"endo": 0, "epi": 1, "mid": 2}
+    params["environment.celltype"] = cell_type_dict[cell_type]
+
     # Make dict contianing all parameter values to save
     parameter_data = params.copy()
     parameter_data["bcl"] = bcl
     parameter_data["total_beats"] = total_beats
     parameter_data["beats_keep"] = beats_keep
-
-    cell_type_dict = {"endo": 0, "epi": 1, "mid": 2}
 
     # Run simulation
     df_sim = funs.sim_model(
@@ -756,7 +732,6 @@ def run_sim_and_update_fig(
         bcl=bcl,
         total_beats=total_beats,
         beats_keep=beats_keep,
-        cell_type=cell_type_dict[cell_type],
     )
 
     # Need to convert df to dict to store as json
