@@ -143,6 +143,7 @@ def sim_s1s2_restitution(
 ):
     """
     Simulate Torord model usign S1S2 stimulation protocol for a range of S2 values
+    Allow a max of 50 S2 values (to aviod overloading machine)
     Return time series of final S1 stimulation followed by single S2 stimulation
     Return data on APD and CaT amplitude as a function of S2 interval
 
@@ -170,6 +171,13 @@ def sim_s1s2_restitution(
 
     # Unpack S2 values
     list_s2_intervals = s2_input_to_list(s2_intervals)
+
+    # If too many - only work with last 50 vals
+    if len(list_s2_intervals) > 50:
+        list_s2_intervals = list_s2_intervals[-50:]
+
+    # Only take values greater than 0
+    list_s2_intervals = [s2 for s2 in list_s2_intervals if s2 > 0]
 
     # Get default state of model
     default_state = s.default_state()
@@ -255,8 +263,12 @@ def sim_s1s2_restitution(
             "cat_amplitude": list_cat_amplitude_vals,
         }
     )
-
-    df_ts = pd.concat(list_df)
+    if len(list_df) == 0:
+        df_ts = pd.DataFrame(
+            columns=["membrane.v", "time", "intracellular_ions.cai", "s2_interval"]
+        )
+    else:
+        df_ts = pd.concat(list_df)
 
     # Reset simulation completely (including prepacing)
     s.set_state(default_state)
@@ -346,6 +358,7 @@ def make_restitution_fig(df_restitution, plot_var):
 def s2_input_to_list(s2_intervals):
     """
     Convert user input for s2 values to list of integers
+    If invalid argument, return a single value
 
     Args:
         s2_intervals: str
@@ -381,6 +394,175 @@ def s2_input_to_list(s2_intervals):
         return []
 
     return list_s2_intervals
+
+
+def sim_rate_change(
+    s,
+    params={},
+    bcl_values="250:500:50, 500:1000:100",
+    nbeats=10,
+):
+    """
+    Simulate Torord model for a range of bcl values
+    Allow a max of 20 bcl values (to aviod overloading machine)
+    Return data on APD and CaT amplitude as a function of bcl
+
+    Parameters
+    ----------
+
+    s : simulation class (myokit.Simulation)
+    params : dict
+        Dictionary of user-defined model parameter values. Those that are not
+        specified are set to default.
+    bcl_values: str
+        String input by the user that provides bcl values
+    nbeats : int
+        number of pulses
+
+    Returns
+    -------
+    df_rate: pd.DataFrame
+        apd and cat_amplitude as a function of bcl
+
+    """
+
+    # Unpack S2 values
+    list_bcl_values = s2_input_to_list(bcl_values)
+
+    # If too many - only work with last 20 vals
+    if len(list_bcl_values) > 20:
+        list_bcl_values = list_bcl_values[-20:]
+
+    # Only take values greater than 0
+    list_bcl_values = [s2 for s2 in list_bcl_values if s2 > 0]
+
+    # Get default state of model
+    default_state = s.default_state()
+
+    # Assign parameters to simulation object
+    for key in params.keys():
+        s.set_constant(key, params[key])
+
+    list_df = []
+    list_di_vals = []
+    list_apd_vals = []
+    list_cat_amplitude_vals = []
+
+    for bcl in list_bcl_values:
+
+        # Pre-pacing
+        p = myokit.pacing.blocktrain(bcl, duration=0.5, offset=0)
+        s.set_protocol(p)
+        s.pre(nbeats * bcl)
+
+        # Set pacing protocol
+        p = myokit.Protocol()
+        # Schedule 2 stimuli
+        p.schedule(level=1.0, start=0, duration=0.5)
+        p.schedule(level=1.0, start=bcl, duration=0.5)
+
+        # Update protoocl
+        s.set_protocol(p)
+
+        # Pacing simulation
+        d = s.run(3 * bcl)
+
+        # Collect data
+        data_dict = {}
+        data_dict["membrane.v"] = d["membrane.v"]
+        data_dict["time"] = d["environment.time"]
+        data_dict["intracellular_ions.cai"] = d["intracellular_ions.cai"]
+        df = pd.DataFrame(data_dict)
+        df["bcl"] = bcl
+        list_df.append(df)
+
+        # Compute APD
+        voltage_vals = d["membrane.v"]
+        time_vals = d["environment.time"]
+        thresh = -80  # mV
+        crossings_zero_voltage = find_crossings(voltage_vals, 0)
+        crossings_thresh = find_crossings(voltage_vals, thresh)
+
+        # Must be 4 crossings at zero voltage to determine APD
+        if (len(crossings_zero_voltage) == 4) & (len(crossings_thresh) == 4):
+            # Get DI and APD info
+            ap1_start = crossings_thresh[0]
+            ap1_end = crossings_thresh[1]
+            ap2_start = crossings_thresh[2]
+            ap2_end = crossings_thresh[3]
+            apd1 = time_vals[ap1_end] - time_vals[ap1_start]
+            apd2 = time_vals[ap2_end] - time_vals[ap2_start]
+
+        else:
+            apd1 = np.nan
+            apd2 = np.nan
+
+        list_apd_vals.append(apd1)
+        list_apd_vals.append(apd2)
+
+        # Compute calcium transient amplitude
+        local_maxima = find_local_maxima(d["intracellular_ions.cai"])
+        # Require at least two peaks
+        if len(local_maxima) >= 2:
+            cat1, cat2 = local_maxima[:2]
+        else:
+            cat1, cat2 = np.nan, np.nan
+
+        list_cat_amplitude_vals.append(cat1)
+        list_cat_amplitude_vals.append(cat2)
+
+        # Reset simulation to pre-paced state
+        s.reset()
+
+    df_rate = pd.DataFrame(
+        {
+            "bcl": [bcl for bcl in list_bcl_values for _ in range(2)],
+            "apd": list_apd_vals,
+            "cat_amplitude": list_cat_amplitude_vals,
+        }
+    )
+
+    # Reset simulation completely (including prepacing)
+    s.set_state(default_state)
+    s.set_time(0)
+
+    return df_rate
+
+
+def make_rate_change_fig(df_rate, plot_var):
+    line_width = 1
+
+    fig = go.Figure()
+
+    if plot_var == "membrane.v":
+        y_var = "apd"
+        y_axes_title = "APD90 (ms)"
+    elif plot_var == "intracellular_ions.cai":
+        y_var = "cat_amplitude"
+        y_axes_title = "CaT amplitude"
+
+    fig.add_trace(
+        go.Scatter(
+            x=df_rate["bcl"],
+            y=df_rate[y_var],
+            # showlegend=False,
+            mode="lines+markers",
+            line={
+                "color": cols[0],
+                "width": line_width,
+            },
+        ),
+    )
+
+    fig.update_xaxes(title="BCL (ms)")
+    fig.update_yaxes(title=y_axes_title)
+
+    fig.update_layout(
+        height=400,
+        margin={"l": 20, "r": 20, "t": 30, "b": 20},
+    )
+
+    return fig
 
 
 # Test functions
