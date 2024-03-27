@@ -142,7 +142,9 @@ def sim_s1s2_restitution(
     s2_intervals="300:500:20, 500:1000:50",
 ):
     """
-    Simulate Torord model with prepacing and then S1-S2 stimulation protocol
+    Simulate Torord model usign S1S2 stimulation protocol for a range of S2 values
+    Return time series of final S1 stimulation followed by single S2 stimulation
+    Return data on APD and CaT amplitude as a function of S2 interval
 
     Parameters
     ----------
@@ -159,8 +161,10 @@ def sim_s1s2_restitution(
 
     Returns
     -------
-    df : pd.DataFrame
-        Dataframe of data for restitution plots
+    df_ts : pd.DataFrame
+        time series
+    df_restitution: pd.DataFrame
+        apd, di and cat_amplitude as a function of S1
 
     """
 
@@ -182,6 +186,8 @@ def sim_s1s2_restitution(
     list_df = []
     list_di_vals = []
     list_apd_vals = []
+    list_cat_amplitude_vals = []
+
     for s2_interval in list_s2_intervals:
         # Set pacing protocol
         p = myokit.Protocol()
@@ -214,11 +220,13 @@ def sim_s1s2_restitution(
 
         # Must be 4 crossings at zero voltage to determine DI and APD
         if (len(crossings_zero_voltage) == 4) & (len(crossings_thresh) == 4):
+            # Get DI and APD info
             di_start = crossings_thresh[1]
             di_end = crossings_thresh[2]
             ap_end = crossings_thresh[3]
             di = time_vals[di_end] - time_vals[di_start]
             apd = time_vals[ap_end] - time_vals[di_end]
+
         else:
             di = np.nan
             apd = np.nan
@@ -226,11 +234,26 @@ def sim_s1s2_restitution(
         list_di_vals.append(di)
         list_apd_vals.append(apd)
 
+        # Get calcium transient amplitude (the one after S2)
+        local_maxima = find_local_maxima(d["intracellular_ions.cai"])
+        # Require two peaks
+        if len(local_maxima) == 2:
+            cat_amplitude = local_maxima[1]
+        else:
+            cat_amplitude = np.nan
+
+        list_cat_amplitude_vals.append(cat_amplitude)
+
         # Reset simulation to pre-paced state
         s.reset()
 
     df_restitution = pd.DataFrame(
-        {"s2_interval": list_s2_intervals, "di": list_di_vals, "apd": list_apd_vals}
+        {
+            "s2_interval": list_s2_intervals,
+            "di": list_di_vals,
+            "apd": list_apd_vals,
+            "cat_amplitude": list_cat_amplitude_vals,
+        }
     )
 
     df_ts = pd.concat(list_df)
@@ -252,13 +275,27 @@ def find_crossings(arr, value):
     return crossings
 
 
+def find_local_maxima(arr):
+    local_maxima = []
+    n = len(arr)
+
+    # Check for edge cases where array length is less than 3
+    if n < 3:
+        return local_maxima
+
+    for i in range(1, n - 1):
+        if arr[i] > arr[i - 1] and arr[i] > arr[i + 1]:
+            local_maxima.append(arr[i])
+
+    return local_maxima
+
+
 def make_s1s2_fig(df_ts, plot_var):
     line_width = 1
 
     fig = px.line(df_ts, x="time", y=plot_var, color="s2_interval")
 
     fig.update_xaxes(title="DI")
-    fig.update_yaxes(title="APD")
 
     fig.update_traces(line={"width": line_width})
 
@@ -272,24 +309,31 @@ def make_s1s2_fig(df_ts, plot_var):
 
 def make_restitution_fig(df_restitution, plot_var):
     line_width = 1
+
     fig = go.Figure()
 
     if plot_var == "membrane.v":
-        fig.add_trace(
-            go.Scatter(
-                x=df_restitution["di"],
-                y=df_restitution["apd"],
-                showlegend=False,
-                mode="lines+markers",
-                line={
-                    "color": cols[0],
-                    "width": line_width,
-                },
-            ),
-        )
+        y_var = "apd"
+        y_axes_title = "APD90 (ms)"
+    elif plot_var == "intracellular_ions.cai":
+        y_var = "cat_amplitude"
+        y_axes_title = "CaT amplitude (mM)"
 
-    fig.update_xaxes(title="DI")
-    fig.update_yaxes(title="APD")
+    fig.add_trace(
+        go.Scatter(
+            x=df_restitution["di"],
+            y=df_restitution[y_var],
+            showlegend=False,
+            mode="lines+markers",
+            line={
+                "color": cols[0],
+                "width": line_width,
+            },
+        ),
+    )
+
+    fig.update_xaxes(title="DI (ms)")
+    fig.update_yaxes(title=y_axes_title)
 
     fig.update_layout(
         height=400,

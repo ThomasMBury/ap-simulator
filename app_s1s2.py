@@ -99,6 +99,7 @@ var_names = [var.qname() for var in list(m.variables(const=False))]
 # State variables to plot by default
 plot_vars = ["membrane.v", "intracellular_ions.cai"]
 plot_var_def = "membrane.v"
+plot_var_def = "intracellular_ions.cai"
 
 # Create simulation object with model
 s = myokit.Simulation(m)
