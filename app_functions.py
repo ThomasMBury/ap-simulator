@@ -236,8 +236,8 @@ def sim_s1s2_restitution(
 
         # Get calcium transient amplitude (the one after S2)
         local_maxima = find_local_maxima(d["intracellular_ions.cai"])
-        # Require two peaks
-        if len(local_maxima) == 2:
+        # Require at least two peaks
+        if len(local_maxima) >= 2:
             cat_amplitude = local_maxima[1]
         else:
             cat_amplitude = np.nan
@@ -295,7 +295,7 @@ def make_s1s2_fig(df_ts, plot_var):
 
     fig = px.line(df_ts, x="time", y=plot_var, color="s2_interval")
 
-    fig.update_xaxes(title="DI")
+    fig.update_xaxes(title="Time (ms)")
 
     fig.update_traces(line={"width": line_width})
 
@@ -317,13 +317,13 @@ def make_restitution_fig(df_restitution, plot_var):
         y_axes_title = "APD90 (ms)"
     elif plot_var == "intracellular_ions.cai":
         y_var = "cat_amplitude"
-        y_axes_title = "CaT amplitude (mM)"
+        y_axes_title = "CaT amplitude"
 
     fig.add_trace(
         go.Scatter(
             x=df_restitution["di"],
             y=df_restitution[y_var],
-            showlegend=False,
+            # showlegend=False,
             mode="lines+markers",
             line={
                 "color": cols[0],
