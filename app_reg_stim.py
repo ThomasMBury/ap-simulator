@@ -49,7 +49,7 @@ navbar = dbc.NavbarSimple(
             [
                 dbc.DropdownMenuItem(
                     "Regular stimulation",
-                    href="/ap-simulator/",
+                    href="/ap-simulator/reg-stim/",
                     external_link=True,
                 ),
                 dbc.DropdownMenuItem(
