@@ -244,7 +244,7 @@ body_layout = dbc.Container(
                         dcc.Markdown(
                             """
                             -----
-                            **Protocol**:
+                            **Protocol settings**:
                             """
                         ),
                         # Input box for BCL
