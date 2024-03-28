@@ -32,7 +32,7 @@ if os.getcwd() == fileroot_local:
 else:
     run_cloud = True
     fileroot = fileroot_cloud
-    requests_pathname_prefix = "/ap-simulator/"
+    requests_pathname_prefix = "/ap-simulator/s1-s2/"
 
 # Top navigation bar
 navbar = dbc.NavbarSimple(
