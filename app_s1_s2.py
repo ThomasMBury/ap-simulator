@@ -4,7 +4,7 @@
 Created on 27 Feb, 2024
 
 Dash app to run simulation of Torod model in myokit
-- rate dependence and alternans
+- S1S2 stimulation protocol
 
 @author: tbury
 """
@@ -37,6 +37,17 @@ else:
 # Top navigation bar
 navbar = dbc.NavbarSimple(
     children=[
+        dbc.DropdownMenu(
+            [
+                dbc.DropdownMenuItem("Regular stimulation", href="/reg-stim/"),
+                dbc.DropdownMenuItem("S1-S2 restitution", href="/s1-s2/"),
+                dbc.DropdownMenuItem(
+                    "Rate dependence and alternans", href="/rate-dep/"
+                ),
+            ],
+            label="Protocol",
+            nav=True,
+        ),
         dbc.NavItem(
             dbc.NavLink(
                 "Article",
@@ -99,6 +110,7 @@ var_names = [var.qname() for var in list(m.variables(const=False))]
 # State variables to plot by default
 plot_vars = ["membrane.v", "intracellular_ions.cai"]
 plot_var_def = "membrane.v"
+# plot_var_def = "intracellular_ions.cai"
 
 # Create simulation object with model
 s = myokit.Simulation(m)
@@ -110,28 +122,33 @@ params_default = {
 }
 
 # Default protocol values
-bcl_values_def = "250:500:50, 500:1000:100"
-nbeats_def = 10
+s1_interval_def = 1000
+s1_nbeats_def = 10
+s2_intervals_def = "300:500:20, 500:1000:50"
 
-# Run default rate change simulation
-df_rate = funs.sim_rate_change(
+# Run default S1S2 simulation
+df_ts, df_restitution = funs.sim_s1s2_restitution(
     s,
     params={},
-    bcl_values=bcl_values_def,
-    nbeats=nbeats_def,
+    s1_interval=s1_interval_def,
+    s1_nbeats=s1_nbeats_def,
+    s2_intervals=s2_intervals_def,
 )
 
 # Need to convert df to dict to store as json on app
-rate_data = {"data-frame": df_rate.to_dict("records")}
+ts_data = {"data-frame": df_ts.to_dict("records")}
+restitution_data = {"data-frame": df_restitution.to_dict("records")}
 
 # Make dict contianing all parameter values to save
 parameter_data = params_default.copy()
-parameter_data["bcl_values"] = bcl_values_def
-parameter_data["nbeats"] = nbeats_def
+parameter_data["s1_interval"] = s1_interval_def
+parameter_data["s1_nbeats"] = s1_nbeats_def
+parameter_data["s2_intervals"] = s2_intervals_def
 
 # Make default figs
-fig_rate_change = funs.make_rate_fig(df_rate, plot_var_def)
-div_fig = html.Div(dcc.Graph(figure=fig_rate_change))
+fig_ts = funs.make_s1s2_fig(df_ts, plot_var_def)
+fig_restitution = funs.make_restitution_fig(df_restitution, plot_var_def)
+div_fig = html.Div([dcc.Graph(figure=fig_ts), dcc.Graph(figure=fig_restitution)])
 
 # Setup figure tabs
 list_tabs = [dcc.Tab(value=var, label=var) for var in plot_vars]
@@ -226,17 +243,25 @@ body_layout = dbc.Container(
                         html.Div(
                             [
                                 html.Label(
-                                    "BCL values (comma separated, min:max:inc)",
-                                    style=dict(fontSize=14),
+                                    "S1 cycle length =", style=dict(fontSize=14)
                                 ),
                                 dcc.Input(
-                                    id="bcl_values",
-                                    value=bcl_values_def,
+                                    id="s1_interval",
+                                    value=s1_interval_def,
                                     type="number",
-                                    style=dict(width=200, display="inline-block"),
-                                    placeholder=bcl_values_def,
+                                    style=dict(width=80, display="inline-block"),
+                                    placeholder=s1_interval_def,
                                     min=1,
                                     max=10000,
+                                ),
+                                html.Label(", BPM = ", style=dict(fontSize=14)),
+                                dcc.Input(
+                                    id="bpm",
+                                    value=60,
+                                    type="number",
+                                    style=dict(width=80, display="inline-block"),
+                                    min=6,
+                                    max=60000,
                                 ),
                             ],
                         ),
@@ -244,21 +269,37 @@ body_layout = dbc.Container(
                         html.Div(
                             [
                                 html.Label(
-                                    "Number of pulses = ",
+                                    "Number of S1 pulses = ",
                                     style=dict(fontSize=14, display="inline-block"),
                                 ),
                                 dcc.Input(
-                                    id="nbeats",
-                                    value=nbeats_def,
+                                    id="s1_nbeats",
+                                    value=s1_nbeats_def,
                                     type="number",
                                     style=dict(width=80, display="inline-block"),
-                                    placeholder=nbeats_def,
+                                    placeholder=s1_nbeats_def,
                                     min=1,
                                     max=200,
                                     step=1,
                                 ),
                             ],
                             style=dict(display="inline-block", width="100%"),
+                        ),
+                        # Input box for show last
+                        html.Div(
+                            [
+                                html.Label(
+                                    "S2 intervals (comma separated list, min:max:inc) ",
+                                    style=dict(fontSize=14),
+                                ),
+                                dcc.Input(
+                                    id="s2_intervals",
+                                    value=s2_intervals_def,
+                                    type="text",
+                                    style=dict(width=300),
+                                    placeholder=s2_intervals_def,
+                                ),
+                            ]
                         ),
                         dcc.Markdown(
                             """

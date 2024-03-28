@@ -4,8 +4,7 @@
 Created on 27 Feb, 2024
 
 Dash app to run simulation of Torod model in myokit
-Updates:
-    - dropdown box to select sliders that appear
+- rate dependence and alternans
 
 @author: tbury
 """
@@ -21,13 +20,6 @@ import myokit as myokit
 
 import app_functions as funs
 
-
-# Potential new features
-# - button to save ALL variables (would require resimulation with immediate downlaod, don't want to store this data in browser as big file)
-# - make run button bigger
-
-# Inspired by this example
-# https://dash.gallery/dash-cytoscape-lda/?_gl=1*1n1w6iy*_ga*MTkwMzI4NzAyLjE2NjY4MDg0MDg.*_ga_6G7EE0JNSC*MTcwMDI2MTU3MS4xMDguMS4xNzAwMjYyNTY0LjYwLjAuMA..#
 
 # Determine if running app locally or on cloud
 fileroot_local = "/Users/tbury/Google Drive/research/postdoc_23/ap-simulator"
@@ -45,6 +37,17 @@ else:
 # Top navigation bar
 navbar = dbc.NavbarSimple(
     children=[
+        dbc.DropdownMenu(
+            [
+                dbc.DropdownMenuItem("Regular stimulation", href="/reg-stim/"),
+                dbc.DropdownMenuItem("S1-S2 restitution", href="/s1-s2/"),
+                dbc.DropdownMenuItem(
+                    "Rate dependence and alternans", href="/rate-dep/"
+                ),
+            ],
+            label="Protocol",
+            nav=True,
+        ),
         dbc.NavItem(
             dbc.NavLink(
                 "Article",
@@ -74,29 +77,6 @@ app = Dash(
 )
 server = app.server
 
-
-# # Dictionary to map paramter label to parameter stored in mmt file
-# label_to_par = dict(
-#     INa="INa.GNa",  # membrane_fast_sodium_current_conductance
-#     INaL="INaL.GNaL_b",  # membrane_persistent_sodium_current_conductance
-#     ICaL="ICaL.PCa_b",  # membrane_L_type_calcium_current_conductance
-#     Ito="Ito.Gto_b",  # membrane_transient_outward_current_conductance
-#     INaCa="INaCa.Gncx_b",  # membrane_sodium_calcium_exchanger_current_conductance
-#     INaK="INaK.Pnak_b",  # membrane_sodium_potassium_pump_current_permeability
-#     IKr="IKr.GKr_b",  # membrane_rapid_delayed_rectifier_potassium_current_conductance
-#     IKs="IKs.GKs_b",  # membrane_slow_delayed_rectifier_potassium_current_conductance
-#     IK1="IK1.GK1_b",  # membrane_inward_rectifier_potassium_current_conductance
-#     Jrel="ryr.Jrel_b",  # SR_release_current_max
-#     Jup="SERCA.Jup_b",  # SR_uptake_current_max
-# )
-
-# # Map for parameters of extracellular matrix
-# label_to_par_extra = dict(
-#     Cao="extracellular.cao",  # extracellular_calcium_concentration
-#     Clo="extracellular.clo",
-#     Nao="extracellular.nao",  # extracellular_sodium_concentration
-#     Ko="extracellular.ko",  # extracellular_potassium_concentration
-# )
 
 list_params_cond = [
     "INa.GNa",
@@ -128,14 +108,8 @@ m = myokit.load_model(filepath_mmt)
 # Get names of all variables in model
 var_names = [var.qname() for var in list(m.variables(const=False))]
 # State variables to plot by default
-plot_vars_def = [
-    "membrane.v",
-    "INa.INa",
-    "INaCa.INaCa_i",
-    "ICaL.ICaL",
-    "IKr.IKr",
-    "IKs.IKs",
-]
+plot_vars = ["membrane.v", "intracellular_ions.cai"]
+plot_var_def = "membrane.v"
 
 # Create simulation object with model
 s = myokit.Simulation(m)
@@ -147,37 +121,34 @@ params_default = {
 }
 
 # Default protocol values
-bcl_def = 1000
-total_beats_def = 100
-beats_keep_def = 1
+bcl_values_def = "250:500:50, 500:1000:100"
+nbeats_def = 10
 
-# Run default simulation
-df_sim = funs.sim_model(
+# Run default rate change simulation
+df_ts, df_rate = funs.sim_rate_change(
     s,
-    plot_vars_def,
     params={},
-    bcl=bcl_def,
-    total_beats=total_beats_def,
-    beats_keep=beats_keep_def,
+    bcl_values=bcl_values_def,
+    nbeats=nbeats_def,
 )
 
 # Need to convert df to dict to store as json on app
-simulation_data = {"data-frame": df_sim.to_dict("records")}
+ts_data = {"data-frame": df_ts.to_dict("records")}
+rate_data = {"data-frame": df_rate.to_dict("records")}
 
 # Make dict contianing all parameter values to save
 parameter_data = params_default.copy()
-parameter_data["bcl"] = bcl_def
-parameter_data["total_beats"] = total_beats_def
-parameter_data["beats_keep"] = beats_keep_def
+parameter_data["bcl_values"] = bcl_values_def
+parameter_data["nbeats"] = nbeats_def
 
-
-# Make default figure
-fig = funs.make_simulation_fig(df_sim, "membrane.v")
-div_fig = html.Div(dcc.Graph(figure=fig))
+# Make default figs
+fig_ts = funs.make_bcl_ts_fig(df_ts, plot_var_def)
+fig_rate_change = funs.make_rate_fig(df_rate, plot_var_def)
+div_fig = html.Div([dcc.Graph(figure=fig_ts), dcc.Graph(figure=fig_rate_change)])
 
 # Setup figure tabs
-list_tabs = [dcc.Tab(value=var, label=var) for var in plot_vars_def]
-tabs = dcc.Tabs(list_tabs, id="tabs", value="membrane.v")
+list_tabs = [dcc.Tab(value=var, label=var) for var in plot_vars]
+tabs = dcc.Tabs(list_tabs, id="tabs", value=plot_var_def)
 
 
 # ------------
@@ -261,32 +232,24 @@ body_layout = dbc.Container(
                         dcc.Markdown(
                             """
                             -----
-                            **Protocol**:
+                            **Protocol settings**:
                             """
                         ),
                         # Input box for BCL
                         html.Div(
                             [
                                 html.Label(
-                                    "Basic cycle length =", style=dict(fontSize=14)
+                                    "BCL values (comma separated, min:max:inc)",
+                                    style=dict(fontSize=14),
                                 ),
                                 dcc.Input(
-                                    id="bcl",
-                                    value=bcl_def,
-                                    type="number",
-                                    style=dict(width=80, display="inline-block"),
-                                    placeholder=bcl_def,
+                                    id="bcl_values",
+                                    value=bcl_values_def,
+                                    type="text",
+                                    style=dict(width=300, display="inline-block"),
+                                    placeholder=bcl_values_def,
                                     min=1,
                                     max=10000,
-                                ),
-                                html.Label(", BPM = ", style=dict(fontSize=14)),
-                                dcc.Input(
-                                    id="bpm",
-                                    value=60,
-                                    type="number",
-                                    style=dict(width=80, display="inline-block"),
-                                    min=6,
-                                    max=60000,
                                 ),
                             ],
                         ),
@@ -294,38 +257,21 @@ body_layout = dbc.Container(
                         html.Div(
                             [
                                 html.Label(
-                                    "Number of beats = ",
+                                    "Number of pulses = ",
                                     style=dict(fontSize=14, display="inline-block"),
                                 ),
                                 dcc.Input(
-                                    id="total_beats",
-                                    value=total_beats_def,
+                                    id="nbeats",
+                                    value=nbeats_def,
                                     type="number",
                                     style=dict(width=80, display="inline-block"),
-                                    placeholder=total_beats_def,
+                                    placeholder=nbeats_def,
                                     min=1,
-                                    max=200,
+                                    max=50,
                                     step=1,
                                 ),
                             ],
                             style=dict(display="inline-block", width="100%"),
-                        ),
-                        # Input box for show last
-                        html.Div(
-                            [
-                                html.Label("Show last ", style=dict(fontSize=14)),
-                                dcc.Input(
-                                    id="beats_keep",
-                                    value=beats_keep_def,
-                                    type="number",
-                                    style=dict(width=80),
-                                    placeholder=beats_keep_def,
-                                    min=1,
-                                    max=200,
-                                    step=1,
-                                ),
-                                html.Label(" beats ", style=dict(fontSize=14)),
-                            ]
                         ),
                         dcc.Markdown(
                             """
@@ -448,17 +394,8 @@ body_layout = dbc.Container(
                         dcc.Markdown(
                             """
                             -----
-                            **Variables to visualise and save**:
+                            **Plot variables**:
                             """
-                        ),
-                        dcc.Dropdown(
-                            id="dropdown_plot_vars",
-                            options=var_names,
-                            value=plot_vars_def,
-                            multi=True,
-                            maxHeight=400,
-                            optionHeight=20,
-                            style=dict(fontSize=12),
                         ),
                         # Tabs
                         html.Div(tabs, id="tabs_container_div"),
@@ -516,13 +453,20 @@ body_layout = dbc.Container(
                                                 n_clicks=0,
                                                 style=dict(fontSize=14),
                                             ),
-                                            dcc.Download(id="download_simulation"),
+                                            dcc.Download(id="download_ts"),
+                                            dcc.Download(id="download_rate"),
                                             dcc.Download(id="download_parameters"),
-                                            # Storage component for simulation and parameter data
+                                            # Storage component for rate data
                                             dcc.Store(
-                                                id="simulation_data",
-                                                data=simulation_data,
+                                                id="rate_data",
+                                                data=rate_data,
                                             ),
+                                            # Storage component for time series data
+                                            dcc.Store(
+                                                id="ts_data",
+                                                data=ts_data,
+                                            ),
+                                            # Storage comp. for parameter data
                                             dcc.Store(
                                                 id="parameter_data", data=parameter_data
                                             ),
@@ -545,31 +489,31 @@ body_layout = dbc.Container(
 app.layout = html.Div([navbar, body_layout])
 
 
-# -----------------
-# Callback function to sync BCL and BPM boxes
-# -----------------
-@app.callback(
-    [
-        Output(
-            "bcl",
-            "value",
-            allow_duplicate=True,
-        ),
-        Output("bpm", "value"),
-    ],
-    [
-        Input("bcl", "value"),
-        Input("bpm", "value"),
-    ],
-    prevent_initial_call=True,
-)
-def sync_input(bcl, bpm):
-    input_id = ctx.triggered[0]["prop_id"].split(".")[0]
-    if input_id == "bcl":
-        bpm = None if bcl is None else int(60000 / float(bcl) * 100) / 100
-    else:
-        bcl = None if bpm is None else int(60000 / float(bpm) * 100) / 100
-    return bcl, bpm
+# # -----------------
+# # Callback function to sync BCL and BPM boxes
+# # -----------------
+# @app.callback(
+#     [
+#         Output(
+#             "s1_interval",
+#             "value",
+#             allow_duplicate=True,
+#         ),
+#         Output("bpm", "value"),
+#     ],
+#     [
+#         Input("s1_interval", "value"),
+#         Input("bpm", "value"),
+#     ],
+#     prevent_initial_call=True,
+# )
+# def sync_input(bcl, bpm):
+#     input_id = ctx.triggered[0]["prop_id"].split(".")[0]
+#     if input_id == "s1_interval":
+#         bpm = None if bcl is None else int(60000 / float(bcl) * 100) / 100
+#     else:
+#         bcl = None if bpm is None else int(60000 / float(bpm) * 100) / 100
+#     return bcl, bpm
 
 
 # --------------
@@ -619,22 +563,16 @@ pars_slider_box_ead["INaCa.Gncx_b"] = 1
 pars_slider_box_ead["extracellular.nao"] = 137
 pars_slider_box_ead["extracellular.clo"] = 148
 pars_slider_box_ead["extracellular.cao"] = 2
-bcl_ead = 4000
+# bcl_ead = 4000 ### can't update bcl here - using multiple bcl values
 
 # Output includes all sliders and ECM boxes
-outputs_callback_preset = (
-    [
-        Output(
-            "{}_slider".format(prefix).replace(".", "_"), "value", allow_duplicate=True
-        )
-        for prefix in list_params_cond
-    ]
-    + [
-        Output("{}_box".format(prefix).replace(".", "_"), "value", allow_duplicate=True)
-        for prefix in list_params_extracell
-    ]
-    + [Output("bcl", "value", allow_duplicate=True)]
-)
+outputs_callback_preset = [
+    Output("{}_slider".format(prefix).replace(".", "_"), "value", allow_duplicate=True)
+    for prefix in list_params_cond
+] + [
+    Output("{}_box".format(prefix).replace(".", "_"), "value", allow_duplicate=True)
+    for prefix in list_params_extracell
+]
 # Input is dropdown box that contains preset labels
 inputs_callback_presets = Input("dropdown_presets", "value")
 
@@ -647,31 +585,31 @@ inputs_callback_presets = Input("dropdown_presets", "value")
 )
 def udpate_sliders_and_boxes(preset):
     if preset == "default":
-        return list(pars_slider_box_default.values()) + [bcl_def]
+        return list(pars_slider_box_default.values())
     elif preset == "EAD":
-        return list(pars_slider_box_ead.values()) + [bcl_ead]
+        return list(pars_slider_box_ead.values())
     else:
         return 0
 
 
-# ---------
-# Callback to sync tabs with variables selected in dropdown box
-# ---------
+# # ---------
+# # Callback to sync tabs with variables selected in dropdown box
+# # ---------
 
 
-@callback(
-    Output("tabs_container_div", "children"), Input("dropdown_plot_vars", "value")
-)
-def display_tabs(plot_vars):
-    tabs = [dcc.Tab(value=var, label=var) for var in plot_vars]
-    children = (
-        dcc.Tabs(
-            id="tabs",
-            value="membrane.v",
-            children=tabs,
-        ),
-    )
-    return children
+# @callback(
+#     Output("tabs_container_div", "children"), Input("dropdown_plot_vars", "value")
+# )
+# def display_tabs(plot_vars):
+#     tabs = [dcc.Tab(value=var, label=var) for var in plot_vars]
+#     children = (
+#         dcc.Tabs(
+#             id="tabs",
+#             value="membrane.v",
+#             children=tabs,
+#         ),
+#     )
+#     return children
 
 
 # ---------
@@ -679,23 +617,28 @@ def display_tabs(plot_vars):
 # ---------
 @app.callback(
     [
-        Output("download_simulation", "data"),
+        Output("download_ts", "data"),
+        Output("download_rate", "data"),
         Output("download_parameters", "data"),
     ],
     Input("button_savedata", "n_clicks"),
-    State("simulation_data", "data"),
+    State("ts_data", "data"),
+    State("rate_data", "data"),
     State("parameter_data", "data"),
     prevent_initial_call=True,
 )
-def func(n_clicks, simulation_data, parameter_data):
-    df_sim = pd.DataFrame(simulation_data["data-frame"])
+def func(n_clicks, ts_data, rate_data, parameter_data):
+    df_ts = pd.DataFrame(ts_data["data-frame"])
+    df_rate = pd.DataFrame(rate_data["data-frame"])
     df_pars = pd.DataFrame()
     df_pars["name"] = parameter_data.keys()
     df_pars["value"] = parameter_data.values()
     # df_pars = df_pars.astype("object")
-    out1 = dcc.send_data_frame(df_sim.to_csv, "simulation_data.csv")
-    out2 = dcc.send_data_frame(df_pars.to_csv, "parameters.csv")
-    return [out1, out2]
+    out_ts = dcc.send_data_frame(df_ts.to_csv, "ts.csv")
+    out_rate = dcc.send_data_frame(df_rate.to_csv, "rate.csv")
+    out_pars = dcc.send_data_frame(df_pars.to_csv, "parameters.csv")
+
+    return [out_ts, out_rate, out_pars]
 
 
 # -----------
@@ -704,11 +647,10 @@ def func(n_clicks, simulation_data, parameter_data):
 
 # Output includes (i) all figures, (ii) loading sign (iii) simulation and parameter data for download
 outputs_callback_run = (
-    # [Output("fig_{}".format(var).replace(".", "_"), "figure") for var in plot_vars_def]
-    # [Output("div_tabs", "children")]
     Output("tabs_container_output_div", "children"),
     Output("loading-output", "children"),
-    Output("simulation_data", "data"),
+    Output("ts_data", "data"),
+    Output("rate_data", "data"),
     Output("parameter_data", "data"),
 )
 # Input is click of run button
@@ -716,11 +658,9 @@ inputs_callback_run = dict(n_clicks=[Input("run_button", "n_clicks")])
 
 # State values are all parameters contained in sliders + boxes
 states_callback_run = dict(
-    bcl=State("bcl", "value"),
-    total_beats=State("total_beats", "value"),
-    beats_keep=State("beats_keep", "value"),
+    bcl_values=State("bcl_values", "value"),
+    nbeats=State("nbeats", "value"),
     cell_type=State("cell_type", "value"),
-    plot_vars=State("dropdown_plot_vars", "value"),
     current_plot_var=State("tabs", "value"),
     params_cond={
         par: State("{}_box".format(par.replace(".", "_")), "value")
@@ -741,19 +681,15 @@ states_callback_run = dict(
 )
 def run_sim_and_update_fig(
     n_clicks,
-    bcl,
-    total_beats,
-    beats_keep,
+    bcl_values,
+    nbeats,
     cell_type,
-    plot_vars,
     current_plot_var,
     params_cond,
     params_extracell,
 ):
     # Updated parameter values
     params = {}
-
-    print(plot_vars)
 
     # Multipliers
     for par in list_params_cond:
@@ -769,27 +705,27 @@ def run_sim_and_update_fig(
 
     # Make dict contianing all parameter values to save
     parameter_data = params.copy()
-    parameter_data["bcl"] = bcl
-    parameter_data["total_beats"] = total_beats
-    parameter_data["beats_keep"] = beats_keep
+    parameter_data["bcl_values"] = bcl_values
+    parameter_data["nbeats"] = nbeats
 
     # Run simulation
-    df_sim = funs.sim_model(
+    df_ts, df_rate = funs.sim_rate_change(
         s,
-        plot_vars,
         params=params,
-        bcl=bcl,
-        total_beats=total_beats,
-        beats_keep=beats_keep,
+        bcl_values=bcl_values,
+        nbeats=nbeats,
     )
 
-    # Need to convert df to dict to store as json
-    simulation_data = {"data-frame": df_sim.to_dict("records")}
+    # Need to convert df to dict to store as json on app
+    ts_data = {"data-frame": df_ts.to_dict("records")}
+    rate_data = {"data-frame": df_rate.to_dict("records")}
 
-    fig = funs.make_simulation_fig(df_sim, current_plot_var)
-    div_fig = html.Div(dcc.Graph(figure=fig))
+    # Make figs
+    fig_ts = funs.make_bcl_ts_fig(df_ts, current_plot_var)
+    fig_rate_change = funs.make_rate_fig(df_rate, current_plot_var)
+    div_fig = html.Div([dcc.Graph(figure=fig_ts), dcc.Graph(figure=fig_rate_change)])
 
-    return [div_fig, "", simulation_data, parameter_data]
+    return [div_fig, "", ts_data, rate_data, parameter_data]
 
 
 # ---------
@@ -798,13 +734,19 @@ def run_sim_and_update_fig(
 @callback(
     Output("tabs_container_output_div", "children", allow_duplicate=True),
     Input("tabs", "value"),
-    State("simulation_data", "data"),
+    State("ts_data", "data"),
+    State("rate_data", "data"),
     prevent_initial_call=True,
 )
-def render_content(tab, simulation_data):
-    df_sim = pd.DataFrame(simulation_data["data-frame"])
-    fig = funs.make_simulation_fig(df_sim, tab)
-    div_fig = html.Div(dcc.Graph(figure=fig))
+def render_content(tab, ts_data, rate_data):
+    df_ts = pd.DataFrame(ts_data["data-frame"])
+    df_rate = pd.DataFrame(rate_data["data-frame"])
+    # Make figs
+    fig_ts = funs.make_bcl_ts_fig(df_ts, tab)
+    fig_rate_change = funs.make_rate_fig(df_rate, tab)
+
+    div_fig = html.Div([dcc.Graph(figure=fig_ts), dcc.Graph(figure=fig_rate_change)])
+
     return div_fig
 
 

@@ -406,6 +406,7 @@ def sim_rate_change(
     Simulate Torord model for a range of bcl values
     Allow a max of 20 bcl values (to aviod overloading machine)
     Return data on APD and CaT amplitude as a function of bcl
+    Reset model to initial state before prepacing.
 
     Parameters
     ----------
@@ -444,7 +445,6 @@ def sim_rate_change(
         s.set_constant(key, params[key])
 
     list_df = []
-    list_di_vals = []
     list_apd_vals = []
     list_cat_amplitude_vals = []
 
@@ -511,8 +511,9 @@ def sim_rate_change(
         list_cat_amplitude_vals.append(cat1)
         list_cat_amplitude_vals.append(cat2)
 
-        # Reset simulation to pre-paced state
-        s.reset()
+        # Reset simulation to state that was before pre-pacing
+        s.set_state(default_state)
+        s.set_time(0)
 
     df_rate = pd.DataFrame(
         {
@@ -522,14 +523,17 @@ def sim_rate_change(
         }
     )
 
-    # Reset simulation completely (including prepacing)
-    s.set_state(default_state)
-    s.set_time(0)
+    if len(list_df) == 0:
+        df_ts = pd.DataFrame(
+            columns=["membrane.v", "time", "intracellular_ions.cai", "bcl"]
+        )
+    else:
+        df_ts = pd.concat(list_df)
 
-    return df_rate
+    return df_ts, df_rate
 
 
-def make_rate_change_fig(df_rate, plot_var):
+def make_rate_fig(df_rate, plot_var):
     line_width = 1
 
     fig = go.Figure()
@@ -546,7 +550,7 @@ def make_rate_change_fig(df_rate, plot_var):
             x=df_rate["bcl"],
             y=df_rate[y_var],
             # showlegend=False,
-            mode="lines+markers",
+            mode="markers",
             line={
                 "color": cols[0],
                 "width": line_width,
@@ -556,6 +560,23 @@ def make_rate_change_fig(df_rate, plot_var):
 
     fig.update_xaxes(title="BCL (ms)")
     fig.update_yaxes(title=y_axes_title)
+
+    fig.update_layout(
+        height=400,
+        margin={"l": 20, "r": 20, "t": 30, "b": 20},
+    )
+
+    return fig
+
+
+def make_bcl_ts_fig(df_ts, plot_var):
+    line_width = 1
+
+    fig = px.line(df_ts, x="time", y=plot_var, color="bcl")
+
+    fig.update_xaxes(title="Time (ms)")
+
+    fig.update_traces(line={"width": line_width})
 
     fig.update_layout(
         height=400,
