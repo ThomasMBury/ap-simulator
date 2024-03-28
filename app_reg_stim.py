@@ -40,7 +40,7 @@ if os.getcwd() == fileroot_local:
 else:
     run_cloud = True
     fileroot = fileroot_cloud
-    requests_pathname_prefix = "/ap-simulator/reg-stim/"
+    requests_pathname_prefix = "/ap-simulator/"
 
 # Top navigation bar
 navbar = dbc.NavbarSimple(
@@ -49,7 +49,7 @@ navbar = dbc.NavbarSimple(
             [
                 dbc.DropdownMenuItem(
                     "Regular stimulation",
-                    href="/ap-simulator/reg-stim/",
+                    href="/ap-simulator/",
                     external_link=True,
                 ),
                 dbc.DropdownMenuItem(
