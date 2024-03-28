@@ -47,10 +47,18 @@ navbar = dbc.NavbarSimple(
     children=[
         dbc.DropdownMenu(
             [
-                dbc.DropdownMenuItem("Regular stimulation", href="/reg-stim/"),
-                dbc.DropdownMenuItem("S1-S2 restitution", href="/s1-s2/"),
                 dbc.DropdownMenuItem(
-                    "Rate dependence and alternans", href="/rate-dep/"
+                    "Regular stimulation",
+                    href="/ap-simulator/reg-stim/",
+                    external_link=True,
+                ),
+                dbc.DropdownMenuItem(
+                    "S1-S2 restitution", href="/ap-simulator/s1-s2/", external_link=True
+                ),
+                dbc.DropdownMenuItem(
+                    "Rate dependence and alternans",
+                    href="/ap-simulator/rate-dep/",
+                    external_link=True,
                 ),
             ],
             label="Protocol",
