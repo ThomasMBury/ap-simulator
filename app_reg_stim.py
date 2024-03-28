@@ -467,7 +467,7 @@ body_layout = dbc.Container(
                         dcc.Markdown(
                             """
                             -----
-                            **Variables to visualise and save**:
+                            **Plot variables**:
                             """
                         ),
                         dcc.Dropdown(
